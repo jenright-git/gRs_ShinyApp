@@ -4,6 +4,8 @@ library(shiny)
 library(bslib)
 library(gRs)
 library(tidyverse)
+library(glue)
+library(plotly)
 
 # Define UI for application that draws a histogram
 ui <- page_navbar(title="Mann Kendall Analysis and Timeseries Plots",
@@ -14,19 +16,31 @@ ui <- page_navbar(title="Mann Kendall Analysis and Timeseries Plots",
                                                                accept = ".xlsx"),
                     ),
                     accordion_panel("Mann-Kendall Controls", 
+                                    actionButton(inputId = "mk_button", label = "Run Trend Analysis"),
                                     uiOutput(outputId = "analyte_selector"),
                                     uiOutput(outputId = "location_selector")
+                                    
                     ),
                     
                     accordion_panel("Plotting Controls", open=TRUE,
                                     uiOutput(outputId = "plotting_analytes"),
                                     uiOutput(outputId = "plotting_locations"),
-                                    uiOutput(outputId = "plotting_date")
+                                    uiOutput(outputId = "plotting_date"),
+                                    radioButtons(inputId = "date_breaks_radio", 
+                                                 label = "Axis Date Breaks", 
+                                                 selected = "3 months", inline = TRUE, 
+                                                 choiceNames = list("Month", "3 Months", "Year", "2 Years"), 
+                                                 choiceValues = list("month", "3 months", "year", "2 years")),
+                                    radioButtons(inputId = "date_label_radio", 
+                                                 label = "Axis Date Labels", 
+                                                 choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y"), 
+                                                 selected = "%b %y", inline = TRUE )
+                                    
                                     
                     ), 
                     open = c("Data_Upload", "Mann-Kendall Controls", "Plotting Controls"))
                     
-                    ),
+                  ),
                   #Main Page  
                   nav_spacer(),
                   nav_panel("Mann-Kendall", 
@@ -41,13 +55,22 @@ ui <- page_navbar(title="Mann Kendall Analysis and Timeseries Plots",
                             )),
                   
                   nav_panel("Timeseries", 
-                            layout_columns(col_widths = c(12,6,6),
+                            layout_columns(col_widths = c(6,6,6,6),
                                            card(card_header("Timeseries Plot"),
-                                                plotOutput("timeseries_plot"), full_screen = TRUE
-                                           ),
+                                                plotOutput("timeseries_plot"), full_screen = TRUE),
+                                           card(card_header("Plotly Timeseries"), 
+                                                plotlyOutput("timeseries_two"), full_screen = TRUE),
                                            card(card_header("Histogram"), 
-                                                plotOutput("conc_histogram"), full_screen = TRUE
-                                           ),
+                                                layout_sidebar(sidebar = 
+                                                                 sidebar(numericInput(inputId = "bin_selector", 
+                                                                                      label = "Select Bin Width",
+                                                                                      value = 0), 
+                                                                         checkboxInput(inputId = "facet_check", 
+                                                                                       label = "Facet by Location", 
+                                                                                       value = FALSE),
+                                                                         open = FALSE),
+                                                               plotOutput("conc_histogram")
+                                                ), full_screen = TRUE),
                                            
                                            card(card_header("Boxplot"),
                                                 plotOutput("conc_boxplot"), full_screen = TRUE)
@@ -60,7 +83,7 @@ ui <- page_navbar(title="Mann Kendall Analysis and Timeseries Plots",
 
 
 
-# Define server logic required to draw a histogram
+# Define server logic required to make visualisations
 server <- function(input, output) {
   #bslib::bs_themer()
   
@@ -71,15 +94,23 @@ server <- function(input, output) {
     
   })
   
-  
-  output$mann_kendall_heatmap <- renderPlot({
-    req(file_data())
-    
+  mk_results <- eventReactive(input$mk_button, {
+
     file_data() %>% 
       filter(analyte %in% input$analyte_input, 
              location %in% input$location_input) %>% 
-      mann_kendall_test() %>% 
-      mann_kendall_heatmap(label_text_size = 6)
+      mann_kendall_test()
+    
+  })
+
+  
+  output$mann_kendall_heatmap <- renderPlot({
+    req(mk_results())
+    
+    mk_results() %>% 
+      mann_kendall_heatmap(label_text_size = 6, ) + 
+      theme(axis.text.y = element_text(size = 12),
+            axis.text.x = element_text(size=12))
   })
   
   output$mann_kendall_table <- DT::renderDataTable({    
@@ -88,13 +119,10 @@ server <- function(input, output) {
       buttons = c("copy", "csv", "excel", "pdf", "print"), 
       lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50), "All")
     )
-    req(file_data())
+    req(mk_results())
     
-    file_data() %>% 
-      filter(analyte %in% input$analyte_input, 
-             location %in% input$location_input) %>% 
+    mk_results() %>% 
       arrange(location) %>% 
-      mann_kendall_test() %>%
       mutate_if(is.numeric, signif, 4) %>% 
       DT::datatable(., extensions = "Buttons", 
                     filter = list(position = "top"),
@@ -167,56 +195,102 @@ server <- function(input, output) {
     
     req(file_data())
     if(!is.null(file_data())){
-      date_range <- input$plotting_date
+      date_range_plot <- input$plotting_date
       
       df <- 
         file_data() %>% 
         filter(analyte %in% input$plotting_analytes, 
                location %in% input$plotting_locations,
-               date >= date_range[1] & date <= date_range[2])
+               date >= date_range_plot[1] & date <= date_range_plot[2])
       
       y_unit <- unique(df$units)
       
       df %>% 
-        timeseries_plot(y_unit = y_unit)+
-        theme_light()
+        timeseries_plot(date_size = 12, 
+                        x_angle = 0, 
+                        y_unit = y_unit, 
+                        date_range = as.POSIXct(date_range_plot), 
+                        date_break = input$date_breaks_radio, 
+                        date_label = input$date_label_radio)
+      
     }
   })
+  
+  output$timeseries_two <- renderPlotly({
+    
+    req(file_data())
+    
+    date_range <- input$plotting_date
+    
+    df <- 
+      file_data() %>% 
+      filter(analyte %in% input$plotting_analytes, 
+             location %in% input$plotting_locations,
+             date >= date_range[1] & date <= date_range[2])
+    
+    y_unit <- unique(df$units)
+    
+    df %>% 
+      plot_ly(x=~date, y=~concentration, color=~location, colors = location_colours, type = "scatter", mode="lines")
+    
+  }) 
+  
   
   output$conc_histogram <- renderPlot({
     req(file_data())
     if(!is.null(file_data())){
       date_range <- input$plotting_date
       
-      
-      file_data() %>% 
+      hist_data <- file_data() %>% 
         filter(analyte %in% input$plotting_analytes, 
                location %in% input$plotting_locations,
-               date >= date_range[1] & date <= date_range[2]) %>% 
-        ggplot(aes(concentration))+
-        geom_histogram(fill="steelblue1", colour="black", binwidth = input$bin_selector)+
-        #facet_wrap(as.formula(paste0("~",input$plotting_locations, sep="")), scales="free_x") +
-        theme_light()+
-        labs(x="Concentration", y="Count")
+               date >= date_range[1] & date <= date_range[2])
+      
+      binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
+      
+      y_unit <- unique(hist_data$units)
+      
+      if(input$facet_check){
+        hist_data %>% 
+          ggplot(aes(concentration))+
+          geom_histogram(fill="steelblue1", colour="black", 
+                         binwidth = binwidth)+
+          facet_wrap(~location) +
+          theme_light()+
+          labs(x=glue('Concentration ({y_unit})'), y="Count")}
+      else{
+        hist_data %>% 
+          ggplot(aes(concentration))+
+          geom_histogram(fill="steelblue1", colour="black", 
+                         binwidth = binwidth)+
+          theme_light()+
+          labs(x=glue('Concentration ({y_unit})'), y="Count")} 
     }
-  }) 
-
+    
+  }
+  ) 
+  
   
   output$conc_boxplot <- renderPlot({
     req(file_data())
     
     date_range <- input$plotting_date
     
-    file_data() %>% 
+    boxplot_data <- 
+      file_data() %>% 
       filter(analyte %in% input$plotting_analytes, 
              location %in% input$plotting_locations,
-             date >= date_range[1] & date <= date_range[2]) %>% 
+             date >= date_range[1] & date <= date_range[2])
+    
+    y_unit <- unique(boxplot_data$units)
+    
+    boxplot_data %>% 
       ggplot(aes(location, concentration, fill=location))+
-      geom_boxplot(alpha=0.4, outlier.shape = NA)+
-      geom_jitter(shape=21, alpha=0.4)+
+      geom_boxplot(alpha=0.4, outlier.shape = NA, show.legend = FALSE)+
+      geom_jitter(shape=21, alpha=0.4, show.legend = FALSE)+
       theme_light()+
       scale_fill_manual(breaks = waiver(), values = location_colours)+
-      labs(x=NULL, y="Concentration")
+      labs(x=NULL, y=glue("Concentration ({y_unit})"))
     
     
   }) 
