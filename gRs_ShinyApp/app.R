@@ -8,75 +8,122 @@ library(glue)
 library(plotly)
 
 # Define UI for application that draws a histogram
-ui <- page_navbar(title="Mann Kendall Analysis and Timeseries Plots",
-                  sidebar = sidebar(
-                    accordion(accordion_panel("Data_Upload", 
+ui <- page_navbar(title="gRs Analysis Tool",
+                  # sidebar = sidebar(
+                  #   accordion(accordion_panel("Data_Upload", 
+                  #                             shiny::fileInput(inputId = "file_input", 
+                  #                                              label = "Upload Esdat File", 
+                  #                                              accept = ".xlsx"),
+                  #   ),
+                  #   accordion_panel("Mann-Kendall Controls", 
+                  #                   actionButton(inputId = "mk_button", label = "Run Trend Analysis"),
+                  #                   uiOutput(outputId = "analyte_selector"),
+                  #                   uiOutput(outputId = "location_selector")
+                  #                   
+                  #   ),
+                  #   
+                  #   accordion_panel("Plotting Controls", open=TRUE,
+                  #                   uiOutput(outputId = "plotting_analytes"),
+                  #                   uiOutput(outputId = "plotting_locations"),
+                  #                   uiOutput(outputId = "plotting_date"),
+                  #                   radioButtons(inputId = "date_breaks_radio", 
+                  #                                label = "Axis Date Breaks", 
+                  #                                selected = "3 months", inline = TRUE, 
+                  #                                choiceNames = list("Month", "3 Months", "Year", "2 Years"), 
+                  #                                choiceValues = list("month", "3 months", "year", "2 years")),
+                  #                   radioButtons(inputId = "date_label_radio", 
+                  #                                label = "Axis Date Labels", 
+                  #                                choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y"), 
+                  #                                selected = "%b %y", inline = TRUE )
+                  #                   
+                  #                   
+                  #   ), 
+                  #   open = c("Data_Upload", "Mann-Kendall Controls", "Plotting Controls"))
+                  
+                  #),
+                  #Main Page  
+                  nav_panel("Mann-Kendall", 
+                            layout_sidebar(sidebar = accordion(
+                              accordion_panel("Data_Upload", 
                                               shiny::fileInput(inputId = "file_input", 
                                                                label = "Upload Esdat File", 
                                                                accept = ".xlsx"),
-                    ),
-                    accordion_panel("Mann-Kendall Controls", 
-                                    actionButton(inputId = "mk_button", label = "Run Trend Analysis"),
-                                    uiOutput(outputId = "analyte_selector"),
-                                    uiOutput(outputId = "location_selector")
-                                    
-                    ),
-                    
-                    accordion_panel("Plotting Controls", open=TRUE,
-                                    uiOutput(outputId = "plotting_analytes"),
-                                    uiOutput(outputId = "plotting_locations"),
-                                    uiOutput(outputId = "plotting_date"),
-                                    radioButtons(inputId = "date_breaks_radio", 
-                                                 label = "Axis Date Breaks", 
-                                                 selected = "3 months", inline = TRUE, 
-                                                 choiceNames = list("Month", "3 Months", "Year", "2 Years"), 
-                                                 choiceValues = list("month", "3 months", "year", "2 years")),
-                                    radioButtons(inputId = "date_label_radio", 
-                                                 label = "Axis Date Labels", 
-                                                 choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y"), 
-                                                 selected = "%b %y", inline = TRUE )
-                                    
-                                    
-                    ), 
-                    open = c("Data_Upload", "Mann-Kendall Controls", "Plotting Controls"))
-                    
-                  ),
-                  #Main Page  
-                  nav_spacer(),
-                  nav_panel("Mann-Kendall", 
-                            navset_card_tab(
-                              nav_panel("Trend Heatmap", 
-                                        card(
-                                          plotOutput("mann_kendall_heatmap"), 
-                                          full_screen = TRUE)),
-                              nav_panel("Results Table", card( 
-                                DT::dataTableOutput("mann_kendall_table"),
-                                full_screen = TRUE))
-                            )),
+                                              shiny::checkboxInput(inputId = "half_lor", 
+                                                                   label = "Use Half LOR?", 
+                                                                   value = FALSE)
+                              ),
+                              
+                              accordion_panel("Mann-Kendall Controls",
+                                              actionButton(inputId = "mk_button", label = "Run Trend Analysis"),
+                                              uiOutput(outputId = "analyte_selector"),
+                                              uiOutput(outputId = "location_selector")),
+                              
+                              accordion_panel("Heatmap Controls",
+                                              splitLayout(
+                                                numericInput("mk_trend_label", "Label Size", value = 6, min = 1, width = '70%'),
+                                                numericInput("mk_label_width", "Label Width", value = 20, min = 0, width = '70%')),
+                                              splitLayout(
+                                                numericInput("mk_x_text", "X Label Size", 12, min = 1, width = '70%'),
+                                                numericInput("mk_y_text", "Y Label Size", 12, min = 1, width = '70%')),
+                                              textInput("mk_title", label = "Title", value = "Mann-Kendall Trend Analysis"),
+                                              numericInput("mk_legend_text", "Legend Text Size",value = 10, min = 0, width = '50%')
+                              ), open = c("Data_Upload", "Mann-Kendall Controls")),
+                              navset_card_tab(
+                                nav_panel("Trend Heatmap", 
+                                          card(
+                                            plotOutput("mann_kendall_heatmap"), 
+                                            full_screen = TRUE)),
+                                nav_panel("Results Table", card( 
+                                  DT::dataTableOutput("mann_kendall_table"),
+                                  full_screen = TRUE))
+                              ))),
                   
                   nav_panel("Timeseries", 
-                            layout_columns(col_widths = c(6,6,6,6),
-                                           card(card_header("Timeseries Plot"),
-                                                plotOutput("timeseries_plot"), full_screen = TRUE),
-                                           card(card_header("Plotly Timeseries"), 
-                                                plotlyOutput("timeseries_two"), full_screen = TRUE),
-                                           card(card_header("Histogram"), 
-                                                layout_sidebar(sidebar = 
-                                                                 sidebar(numericInput(inputId = "bin_selector", 
-                                                                                      label = "Select Bin Width",
-                                                                                      value = 0), 
-                                                                         checkboxInput(inputId = "facet_check", 
-                                                                                       label = "Facet by Location", 
-                                                                                       value = FALSE),
-                                                                         open = FALSE),
-                                                               plotOutput("conc_histogram")
-                                                ), full_screen = TRUE),
-                                           
-                                           card(card_header("Boxplot"),
-                                                plotOutput("conc_boxplot"), full_screen = TRUE)
-                                           
-                                           
-                            ))
+                            layout_sidebar(sidebar = accordion(
+                              accordion_panel("Plotting Controls", open=TRUE,
+                                              uiOutput(outputId = "plotting_analytes"),
+                                              uiOutput(outputId = "plotting_locations"),
+                                              uiOutput(outputId = "plotting_date"),
+                                              radioButtons(inputId = "date_breaks_radio", 
+                                                           label = "Axis Date Breaks", 
+                                                           selected = "3 months", inline = TRUE, 
+                                                           choiceNames = list("Week", "Month", "3 Months", "Year", "2 Years", "5 Years"), 
+                                                           choiceValues = list("week", "month", "3 months", "year", "2 years", "5 years")),
+                                              radioButtons(inputId = "date_label_radio", 
+                                                           label = "Axis Date Labels", 
+                                                           choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y"), 
+                                                           selected = "%b %y", inline = TRUE ))), 
+                              
+                              
+                              layout_columns(col_widths = c(6,6,6,6),
+                                             card(card_header("Timeseries Plot"),
+                                                  plotOutput("timeseries_plot"), full_screen = TRUE),
+                                             card(card_header("Plotly Timeseries"), 
+                                                  plotlyOutput("timeseries_two"), full_screen = TRUE),
+                                             card(card_header("Histogram"), 
+                                                  layout_sidebar(sidebar = 
+                                                                   sidebar(numericInput(inputId = "bin_selector", 
+                                                                                        label = "Select Bin Width",
+                                                                                        value = 0), 
+                                                                           checkboxInput(inputId = "facet_check", 
+                                                                                         label = "Facet by Location", 
+                                                                                         value = FALSE),
+                                                                           open = FALSE),
+                                                                 plotOutput("conc_histogram")
+                                                  ), full_screen = TRUE),
+                                             
+                                             card(card_header("Boxplot"),
+                                                  plotOutput("conc_boxplot"), full_screen = TRUE)
+                                             
+                                             
+                              ))),
+                  
+                  nav_panel(title = "Summary Stats",
+                            card(card_header("Stats"), 
+                                 DT::dataTableOutput("stats_table"),
+                                 full_screen = TRUE)
+                            
+                  )
                   
                   
 )
@@ -85,32 +132,42 @@ ui <- page_navbar(title="Mann Kendall Analysis and Timeseries Plots",
 
 # Define server logic required to make visualisations
 server <- function(input, output) {
-  #bslib::bs_themer()
+  #bslibs_themer()
   
   file_data <- reactive({
     
     file <- input$file_input
-    if(!is.null(file)){data_processor(file$datapath)}
+    
+    lor_check <- input$half_lor
+    
+    if(!is.null(file) & lor_check){data_processor(file$datapath) %>% half_lor}
+    else if(!is.null(file) & lor_check==FALSE){data_processor(file$datapath)}
+    else {}
+    
+    
     
   })
   
   mk_results <- eventReactive(input$mk_button, {
-
+    
     file_data() %>% 
       filter(analyte %in% input$analyte_input, 
              location %in% input$location_input) %>% 
       mann_kendall_test()
     
   })
-
+  
   
   output$mann_kendall_heatmap <- renderPlot({
     req(mk_results())
     
     mk_results() %>% 
-      mann_kendall_heatmap(label_text_size = 6, ) + 
-      theme(axis.text.y = element_text(size = 12),
-            axis.text.x = element_text(size=12))
+      mann_kendall_heatmap(label_text_size = input$mk_trend_label, 
+                           width = input$mk_label_width, 
+                           plot_title = input$mk_title) + 
+      theme(axis.text.y = element_text(size = input$mk_y_text),
+            axis.text.x = element_text(size=input$mk_x_text), 
+            legend.text = element_text(size=input$mk_legend_text))
   })
   
   output$mann_kendall_table <- DT::renderDataTable({    
@@ -195,6 +252,9 @@ server <- function(input, output) {
     
     req(file_data())
     if(!is.null(file_data())){
+      
+      establish_plotting_variables(data = file_data())
+      
       date_range_plot <- input$plotting_date
       
       df <- 
@@ -231,7 +291,13 @@ server <- function(input, output) {
     y_unit <- unique(df$units)
     
     df %>% 
-      plot_ly(x=~date, y=~concentration, color=~location, colors = location_colours, type = "scatter", mode="lines")
+      plot_ly(x=~date, y=~concentration, 
+              color=~location, 
+              colors = location_colours, 
+              type = "scatter", 
+              mode="lines") %>%
+      layout(xaxis = list(title = ""), 
+             yaxis = list(title = glue('Concentration ({y_unit})')), legend = list(title=list(text="Location")))
     
   }) 
   
@@ -294,6 +360,27 @@ server <- function(input, output) {
     
     
   }) 
+  
+  
+  output$stats_table <- DT::renderDataTable({    
+    
+    req(file_data())
+    
+    file_data() %>% 
+      group_by(Location=location, Analyte=analyte) %>% 
+      summarise(n_samples = n(),
+                Minimum = min(concentration, na.rm=T),
+                Mean = mean(concentration, na.rm=T),
+                Maximum = max(concentration, na.rm=-T)) %>% 
+      mutate_if(is.numeric, signif, 4) %>% 
+      DT::datatable(., extensions = "Buttons", 
+                    filter = list(position = "top"),
+                    options = list(dom = 'Blfrtip', 
+                                   buttons = c("copy", "csv", "excel", "pdf", "print"),
+                                   lengthMenu = list(c(-1, 10,25,50),
+                                                     c("All",10,25,50))))
+  })
+  
   
   
 }
