@@ -66,7 +66,9 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                                 numericInput("mk_x_text", "X Label Size", 12, min = 1, width = '70%'),
                                                 numericInput("mk_y_text", "Y Label Size", 12, min = 1, width = '70%')),
                                               textInput("mk_title", label = "Title", value = "Mann-Kendall Trend Analysis"),
-                                              numericInput("mk_legend_text", "Legend Text Size",value = 10, min = 0, width = '50%')
+                                              splitLayout(
+                                                numericInput("mk_title_size", "Title Size", value=10, width = '70%'),
+                                                numericInput("mk_legend_text", "Legend Text Size",value=10, min=0, width='70%'))
                               ), open = c("Data_Upload", "Mann-Kendall Controls")),
                               navset_card_tab(
                                 nav_panel("Trend Heatmap", 
@@ -92,7 +94,15 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                               radioButtons(inputId = "date_label_radio", 
                                                            label = "Axis Date Labels", 
                                                            choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y"), 
-                                                           selected = "%b %y", inline = TRUE ))), 
+                                                           selected = "%b %y", inline = TRUE ),
+                                              splitLayout(
+                                                numericInput("ts_date_size", "Date Size", 10, min = 0, width = '60%'),
+                                                numericInput("ts_x_angle", "Date Angle", 0, min=0, max=360, width = '60%')),
+                                              splitLayout(
+                                                numericInput("min_conc", "Min Y Conc", 0, width='85%'),
+                                                numericInput("max_conc", "Max Y Conc", NA,width='85%'))
+                                              
+                              )), 
                               
                               
                               layout_columns(col_widths = c(6,6,6,6),
@@ -167,7 +177,8 @@ server <- function(input, output) {
                            plot_title = input$mk_title) + 
       theme(axis.text.y = element_text(size = input$mk_y_text),
             axis.text.x = element_text(size=input$mk_x_text), 
-            legend.text = element_text(size=input$mk_legend_text))
+            legend.text = element_text(size=input$mk_legend_text), 
+            title = element_text(size=input$mk_title_size, face = "bold"))
   })
   
   output$mann_kendall_table <- DT::renderDataTable({    
@@ -266,12 +277,14 @@ server <- function(input, output) {
       y_unit <- unique(df$units)
       
       df %>% 
-        timeseries_plot(date_size = 12, 
-                        x_angle = 0, 
+        timeseries_plot(date_size = input$ts_date_size, 
+                        x_angle = input$ts_x_angle, 
                         y_unit = y_unit, 
                         date_range = as.POSIXct(date_range_plot), 
                         date_break = input$date_breaks_radio, 
-                        date_label = input$date_label_radio)
+                        date_label = input$date_label_radio, 
+                        ymin = input$min_conc, 
+                        ymax = input$max_conc)
       
     }
   })
@@ -356,7 +369,8 @@ server <- function(input, output) {
       geom_jitter(shape=21, alpha=0.4, show.legend = FALSE)+
       theme_light()+
       scale_fill_manual(breaks = waiver(), values = location_colours)+
-      labs(x=NULL, y=glue("Concentration ({y_unit})"))
+      labs(x=NULL, y=glue("Concentration ({y_unit})"))+
+      scale_y_continuous(limits = c(input$min_conc, input$max_conc))
     
     
   }) 
