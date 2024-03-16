@@ -124,35 +124,21 @@ ui <- page_navbar(title="gRs Analysis Tool",
                             
                   ),
                   
-                  nav_panel(title = "Facet Plt",
+                  nav_panel(title = "Facet Plot",
                             page_sidebar(
                               sidebar = accordion(
-                               accordion_panel("facet_locations", 
-                                               open=TRUE,
-                                               uiOutput(outputId = "plotting_analytes"),
-                                               actionButton("update_facet_plot_locations", 
-                                                            "Update Locations"),
-                                               uiOutput(outputId = "plotting_locations")) 
-                                
-                                
-                                
-                                
-                              )
-                            )
-                    
-                    
-                    
-                    
-                    
+                                accordion_panel("Filters", 
+                                    open=TRUE,
+                                    actionButton("update_facet_locations",
+                                     "Update Locations"),
+                                    uiOutput(outputId = "facet_analytes"),
+                                    uiOutput(outputId = "facet_locations")) 
+                              ),
+                              card(
+                                plotOutput("facet_plot")
+                              )  )
+                            
                   )
-                  
-                  
-                  
-                  
-                  
-                  
-                  
-                  
                   
 )
 
@@ -311,7 +297,7 @@ server <- function(input, output) {
       filter(chem_name %in% input$plotting_analytes,
              date >= date_range_plot[1] & date <= date_range_plot[2])
     
-    y_unit <- unique(df$units)
+    y_unit <- unique(df$output_unit)
     
     plot <- df %>% 
       timeseries_plot(date_size = input$ts_date_size, 
@@ -349,7 +335,7 @@ server <- function(input, output) {
       filter(chem_name %in% input$plotting_analytes, 
              date >= date_range[1] & date <= date_range[2])
     
-    y_unit <- unique(df$units)
+    y_unit <- unique(df$output_unit)
     
     df %>% 
       plot_ly(x=~date, y=~concentration, 
@@ -374,7 +360,7 @@ server <- function(input, output) {
     
     binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
     
-    y_unit <- unique(hist_data$units)
+    y_unit <- unique(hist_data$output_unit)
     
     hist_plot <- hist_data %>% 
       ggplot(aes(concentration))+
@@ -402,7 +388,7 @@ server <- function(input, output) {
       filter(chem_name %in% input$plotting_analytes, 
              date >= date_range[1] & date <= date_range[2])
     
-    y_unit <- unique(boxplot_data$units)
+    y_unit <- unique(boxplot_data$output_unit)
     
     bplot <- boxplot_data %>% 
       ggplot(aes(location_code, concentration, fill=location_code))+
@@ -456,6 +442,51 @@ server <- function(input, output) {
                                                      c("All",10,25,50))))
   })
   
+  
+  
+  facet_data <- eventReactive(input$update_facet_locations, {
+    
+    file_data() %>% 
+      filter(location_code %in% input$facet_locations,
+             chem_name %in% input$facet_analytes)
+    
+  })
+  
+  output$facet_analytes <- renderUI({
+    
+    req(file_data())
+    selectInput("facet_analytes", 
+                label = "Select Analytes", 
+                choices = file_data() %>% distinct(chem_name),
+                selected = file_data()$chem_name %>% unique(), #couldn't be distinct() because not a vector
+                multiple = TRUE)
+    
+  })  
+  
+  output$facet_locations <- renderUI({
+    req(file_data())
+    selectInput("facet_locations", 
+                label = "Select Locations", 
+                choices = file_data() %>% distinct(location_code),
+                selected = file_data()$location_code %>% unique(), 
+                multiple = TRUE)
+    
+  })  
+  
+  output$facet_plot <- renderPlot({
+    
+    req(facet_data())
+    
+    facet_data() %>% 
+      mutate(chem_name = glue('{chem_name} ({output_unit})')) %>% 
+      ggplot(aes(date, concentration, colour=location_code))+
+      geom_path()+
+      facet_wrap(~chem_name, scales="free_y")+
+      theme_light()+
+      labs(x=NULL,
+           y="Concentration")
+    
+  })
   
   
 }
