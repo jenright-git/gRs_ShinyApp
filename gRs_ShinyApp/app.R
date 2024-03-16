@@ -11,7 +11,7 @@ library(plotly)
 ui <- page_navbar(title="gRs Analysis Tool",
                   #Main Page  
                   nav_panel("Mann-Kendall", 
-                            layout_sidebar(sidebar = accordion(
+                            page_sidebar(sidebar = accordion(
                               accordion_panel("Data_Upload", 
                                               shiny::fileInput(inputId = "file_input", 
                                                                label = "Upload Esdat File", 
@@ -43,9 +43,10 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                           card(
                                             plotOutput("mann_kendall_heatmap"), 
                                             full_screen = TRUE)),
-                                nav_panel("Results Table", card( 
-                                  DT::dataTableOutput("mann_kendall_table"),
-                                  full_screen = TRUE))
+                                nav_panel("Results Table", 
+                                          card( 
+                                            DT::dataTableOutput("mann_kendall_table"),
+                                            full_screen = TRUE))
                                 , 
                                 nav_panel("Increasing Trends",
                                           card(
@@ -56,7 +57,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
                               ))),
                   
                   nav_panel("Timeseries", 
-                            layout_sidebar(sidebar = accordion(
+                            page_sidebar(sidebar = accordion(
                               accordion_panel("Filters", open=TRUE,
                                               uiOutput(outputId = "plotting_analytes"),
                                               actionButton("update_plot_locations", "Update Locations"),
@@ -121,7 +122,36 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                  DT::dataTableOutput("stats_table"),
                                  full_screen = TRUE)
                             
+                  ),
+                  
+                  nav_panel(title = "Facet Plt",
+                            page_sidebar(
+                              sidebar = accordion(
+                               accordion_panel("facet_locations", 
+                                               open=TRUE,
+                                               uiOutput(outputId = "plotting_analytes"),
+                                               actionButton("update_facet_plot_locations", 
+                                                            "Update Locations"),
+                                               uiOutput(outputId = "plotting_locations")) 
+                                
+                                
+                                
+                                
+                              )
+                            )
+                    
+                    
+                    
+                    
+                    
                   )
+                  
+                  
+                  
+                  
+                  
+                  
+                  
                   
                   
 )
@@ -266,8 +296,8 @@ server <- function(input, output) {
       filter(location_code %in% input$plotting_locations)
     
   })
-
-    
+  
+  
   output$timeseries_plot <- renderPlot({
     
     req(plotting_data())
@@ -335,30 +365,30 @@ server <- function(input, output) {
   
   output$conc_histogram <- renderPlot({
     req(plotting_data())
-
-      date_range <- input$plotting_date
-      
-      hist_data <- plotting_data() %>% 
-        filter(chem_name %in% input$plotting_analytes, 
-               date >= date_range[1] & date <= date_range[2])
-      
-      binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
-      
-      y_unit <- unique(hist_data$units)
-      
-      hist_plot <- hist_data %>% 
-        ggplot(aes(concentration))+
-        geom_histogram(fill="steelblue1", colour="black", 
-                       binwidth = binwidth)+
-        theme_light()+
-        labs(x=glue('Concentration ({y_unit})'), y="Count")
-      
-      if(input$facet_check){
-        hist_plot+
-          facet_wrap(~location_code)}
-      else{
-        hist_plot} 
-    }
+    
+    date_range <- input$plotting_date
+    
+    hist_data <- plotting_data() %>% 
+      filter(chem_name %in% input$plotting_analytes, 
+             date >= date_range[1] & date <= date_range[2])
+    
+    binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
+    
+    y_unit <- unique(hist_data$units)
+    
+    hist_plot <- hist_data %>% 
+      ggplot(aes(concentration))+
+      geom_histogram(fill="steelblue1", colour="black", 
+                     binwidth = binwidth)+
+      theme_light()+
+      labs(x=glue('Concentration ({y_unit})'), y="Count")
+    
+    if(input$facet_check){
+      hist_plot+
+        facet_wrap(~location_code)}
+    else{
+      hist_plot} 
+  }
   ) 
   
   
