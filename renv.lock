@@ -604,10 +604,11 @@
       "RemoteUsername": "jenright-git",
       "RemoteRepo": "gRs",
       "RemoteRef": "main",
-      "RemoteSha": "174248c671f9a037f481c55d9a6fc8fe511eaacc",
+      "RemoteSha": "606f79fffe2608f58ef8ef5ddeb1d3fbe1175170",
       "Requirements": [
         "DT",
         "Polychrome",
+        "R",
         "dplyr",
         "ggplot2",
         "ggtext",
@@ -627,7 +628,7 @@
         "writexl",
         "xfun"
       ],
-      "Hash": "f5175f4d0fe490d8a168390a680cbb4d"
+      "Hash": "ed4723bd125270b1dea10b9d4947153e"
     },
     "gargle": {
       "Package": "gargle",

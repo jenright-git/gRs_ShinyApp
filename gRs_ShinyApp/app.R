@@ -130,7 +130,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                 accordion_panel("Filters", 
                                     open=TRUE,
                                     actionButton("update_facet_locations",
-                                     "Update Locations"),
+                                     "Update Plots"),
                                     uiOutput(outputId = "facet_analytes"),
                                     uiOutput(outputId = "facet_locations")) 
                               ),
