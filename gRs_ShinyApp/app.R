@@ -22,21 +22,39 @@ ui <- page_navbar(title="gRs Analysis Tool",
                               ),
                               
                               accordion_panel("Mann-Kendall Controls",
-                                              actionButton(inputId = "mk_button", label = "Run Trend Analysis"),
+                                              actionButton(inputId = "mk_button", 
+                                                           label = "Run Trend Analysis"),
                                               uiOutput(outputId = "analyte_selector"),
                                               uiOutput(outputId = "location_selector")),
                               
                               accordion_panel("Heatmap Controls",
                                               splitLayout(
-                                                numericInput("mk_trend_label", "Label Size", value = 6, min = 1, width = '70%'),
-                                                numericInput("mk_label_width", "Label Width", value = 20, min = 0, width = '70%')),
+                                                numericInput("mk_trend_label", "Label Size", 
+                                                             value = 6, 
+                                                             min = 1, 
+                                                             width = '70%'),
+                                                numericInput("mk_label_width", "Label Width", 
+                                                             value = 20, 
+                                                             min = 0, 
+                                                             width = '70%')),
                                               splitLayout(
-                                                numericInput("mk_x_text", "X Label Size", 12, min = 1, width = '70%'),
-                                                numericInput("mk_y_text", "Y Label Size", 12, min = 1, width = '70%')),
-                                              textInput("mk_title", label = "Title", value = "Mann-Kendall Trend Analysis"),
+                                                numericInput("mk_x_text", "X Label Size", 12, 
+                                                             min = 1, 
+                                                             width = '70%'),
+                                                numericInput("mk_y_text", "Y Label Size", 12, 
+                                                             min = 1, 
+                                                             width = '70%')),
+                                              textInput("mk_title", 
+                                                        label = "Title", 
+                                                        value = "Mann-Kendall Trend Analysis"),
                                               splitLayout(
-                                                numericInput("mk_title_size", "Title Size", value=10, width = '70%'),
-                                                numericInput("mk_legend_text", "Legend Text Size",value=10, min=0, width='70%'))
+                                                numericInput("mk_title_size", "Title Size", 
+                                                             value=10, 
+                                                             width = '70%'),
+                                                numericInput("mk_legend_text", "Legend Text Size",
+                                                             value=10, 
+                                                             min=0, 
+                                                             width='70%'))
                               ), open = c("Data_Upload", "Mann-Kendall Controls")),
                               navset_card_tab(
                                 nav_panel("Trend Heatmap", 
@@ -46,15 +64,15 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                 nav_panel("Results Table", 
                                           card( 
                                             DT::dataTableOutput("mann_kendall_table"),
-                                            full_screen = TRUE))
-                                , 
+                                            full_screen = TRUE)), 
                                 nav_panel("Increasing Trends",
                                           card(
                                             plotOutput("mk_increasing"), 
-                                            full_screen=TRUE)
-                                )
+                                            full_screen=TRUE))
                                 
-                              ))),
+                              )
+                            )
+                          ),
                   
                   nav_panel("Timeseries", 
                             page_sidebar(sidebar = accordion(
@@ -67,26 +85,54 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                               radioButtons(inputId = "date_breaks_radio", 
                                                            label = "Axis Date Breaks", 
                                                            selected = "3 months", inline = TRUE, 
-                                                           choiceNames = list("Week", "Month", "3 Months", "Year", "2 Years", "5 Years"), 
-                                                           choiceValues = list("week", "month", "3 months", "year", "2 years", "5 years")),
+                                                           choiceNames = list("Week", 
+                                                                              "Month", 
+                                                                              "3 Months", 
+                                                                              "Year", 
+                                                                              "2 Years", 
+                                                                              "5 Years"), 
+                                                           choiceValues = list("week", 
+                                                                               "month", 
+                                                                               "3 months", 
+                                                                               "year", 
+                                                                               "2 years", 
+                                                                               "5 years")),
                                               radioButtons(inputId = "date_label_radio", 
                                                            label = "Axis Date Labels", 
-                                                           choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y", "%Y"), 
-                                                           selected = "%b %y", inline = TRUE ),
+                                                           choices = list("%d %b %y", 
+                                                                          "%b %y", 
+                                                                          "%B %Y", 
+                                                                          "%B %y", "%Y"), 
+                                                           selected = "%b %y", 
+                                                           inline = TRUE ),
                                               splitLayout(
-                                                numericInput("ts_date_size", "Date Size", 10, min = 0, width = '60%'),
-                                                numericInput("ts_x_angle", "Date Angle", 0, min=0, max=360, width = '60%')),
+                                                numericInput("ts_date_size", "Date Size", 
+                                                             10, 
+                                                             min = 0, 
+                                                             width = '60%'),
+                                                numericInput("ts_x_angle", "Date Angle", 0, 
+                                                             min=0, 
+                                                             max=360, 
+                                                             width = '60%')),
                                               splitLayout(
-                                                numericInput("min_conc", "Min Y Conc", 0, width='85%'),
-                                                numericInput("max_conc", "Max Y Conc", NA,width='85%'))
+                                                numericInput("min_conc", "Min Y Conc", 0, 
+                                                             width='85%'),
+                                                numericInput("max_conc", "Max Y Conc", NA,
+                                                             width='85%'))
                                               
                               ),
                               accordion_panel("Criteria", 
                                               checkboxInput("criteria_check", label = "Apply Criteria", value = FALSE),
-                                              textInput("criteria_label", label = "Criteria Label", placeholder = "Enter Criteria Label", value = NULL),
+                                              textInput("criteria_label", label = "Criteria Label", 
+                                                        placeholder = "Enter Criteria Label", 
+                                                        value = NULL),
                                               splitLayout( 
-                                                numericInput("criteria_value", label = "Criteria Value", value = 1, min = 0),
-                                                textInput(inputId = "criteria_colour", label = "Colour", value = "Red")
+                                                numericInput("criteria_value", 
+                                                             label = "Criteria Value", 
+                                                             value = 1, min = 0),
+                                                textInput(inputId = "criteria_colour", 
+                                                          label = "Colour", 
+                                                          value = "Red")
                                               ))
                               
                               
@@ -100,16 +146,15 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                            card(card_header("Plotly Timeseries"), 
                                                 plotlyOutput("timeseries_two"), full_screen = TRUE),
                                            card(card_header("Histogram"), 
-                                                layout_sidebar(sidebar = 
-                                                                 sidebar(numericInput(inputId = "bin_selector", 
-                                                                                      label = "Select Bin Width",
-                                                                                      value = 0), 
-                                                                         checkboxInput(inputId = "facet_check", 
-                                                                                       label = "Facet by Location", 
-                                                                                       value = FALSE),
-                                                                         open = FALSE),
-                                                               plotOutput("conc_histogram")
-                                                ), full_screen = TRUE),
+                                                layout_sidebar(sidebar = sidebar(
+                                                  numericInput(inputId = "bin_selector",
+                                                               label = "Select Bin Width",
+                                                                value = 0), 
+                                                  checkboxInput(inputId = "facet_check",
+                                                                label = "Facet by Location", 
+                                                                value = FALSE),
+                                                                open = FALSE),
+                                                  plotOutput("conc_histogram")), full_screen = TRUE),
                                            
                                            card(card_header("Boxplot"),
                                                 plotOutput("conc_boxplot"), full_screen = TRUE)
@@ -155,7 +200,6 @@ server <- function(input, output) {
     
     if(!is.null(file) & lor_check){data_processor(file$datapath) %>% half_lor()}
     else if(!is.null(file) & lor_check==FALSE){data_processor(file$datapath)}
-    else {}
     
     
     
@@ -193,6 +237,7 @@ server <- function(input, output) {
     req(mk_results())
     
     mk_results() %>% 
+      select(-data) %>% 
       arrange(location_code) %>% 
       mutate_if(is.numeric, signif, 4) %>% 
       DT::datatable(., extensions = "Buttons", 
@@ -208,7 +253,7 @@ server <- function(input, output) {
     
     mk_results() %>% 
       filter(trend == "Increasing") %>% 
-      left_join(., file_data()) %>% 
+      unnest(data) %>% 
       mutate(chem_name = glue('{chem_name} ({output_unit})')) %>% 
       ggplot(aes(date, concentration, colour=location_code))+
       geom_point(alpha=0.6, size=1.2)+
@@ -479,12 +524,10 @@ server <- function(input, output) {
     
     facet_data() %>% 
       mutate(chem_name = glue('{chem_name} ({output_unit})')) %>% 
-      ggplot(aes(date, concentration, colour=location_code))+
-      geom_path()+
+      timeseries_plot()+
       facet_wrap(~chem_name, scales="free_y")+
-      theme_light()+
-      labs(x=NULL,
-           y="Concentration")
+      theme(strip.background =element_rect(fill=NA, colour = "black"))+
+      theme(strip.text = element_text(colour = 'black'))
     
   })
   
