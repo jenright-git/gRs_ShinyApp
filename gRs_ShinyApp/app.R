@@ -260,7 +260,9 @@ server <- function(input, output) {
       facet_wrap(~chem_name, scales="free_y")+
       geom_smooth(se=F)+
       theme_light()+
-      labs(x=NULL, y="Concentration", colour=NULL)
+      labs(x=NULL, y="Concentration", colour=NULL)+
+      theme(strip.background = element_rect(fill=NA, colour="black"),
+            strip.text = element_text(colour="black"))
     
   })
   
@@ -416,7 +418,9 @@ server <- function(input, output) {
     
     if(input$facet_check){
       hist_plot+
-        facet_wrap(~location_code)}
+        facet_wrap(~location_code)+
+        theme(strip.background = element_rect(fill=NA, colour="black"),
+              strip.text = element_text(colour="black"))}
     else{
       hist_plot} 
   }
