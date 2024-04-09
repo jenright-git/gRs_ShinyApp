@@ -7,6 +7,8 @@ library(tidyverse)
 library(glue)
 library(plotly)
 
+options(shiny.maxRequestSize = 30*1024^2)
+
 # Define UI for application that draws a histogram
 ui <- page_navbar(title="gRs Analysis Tool", 
                   theme = bs_theme(bg =  "#ffffff",
@@ -75,9 +77,11 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                             DT::dataTableOutput("mann_kendall_table"),
                                             full_screen = TRUE)), 
                                 nav_panel("Increasing Trends",
-                                          card(
+                                          card(layout_sidebar(
+                                            sidebar = sidebar(uiOutput(
+                                              outputId = "trend_select"), open = TRUE),
                                             plotlyOutput("mk_increasing"), 
-                                            full_screen=TRUE))
+                                            full_screen=TRUE)))
                                 
                               )
                             )
@@ -264,7 +268,7 @@ server <- function(input, output) {
     req(mk_results())
     
     increasing_p <- mk_results() %>% 
-      filter(trend == "Increasing") %>% 
+      filter(trend == input$trend_select) %>% 
       unnest(data) %>% 
       mutate(chem_name = glue('{chem_name} ({output_unit})')) %>% 
       ggplot(aes(date, concentration, colour=location_code))+
@@ -305,6 +309,17 @@ server <- function(input, output) {
     
     
     
+    
+  })
+  
+  
+  output$trend_select <- renderUI({
+    
+    require(mk_results)
+    
+    trend_options <- mk_results() %>% distinct(trend)
+    
+    selectInput(inputId = "trend_select", label = "Show Trend", choices = trend_options, selected = "Increasing", multiple = FALSE)
     
   })
   
@@ -411,7 +426,8 @@ server <- function(input, output) {
               mode="lines") %>%
       layout(xaxis = list(title = ""), 
              yaxis = list(title = glue('Concentration ({y_unit})')), 
-             legend = list(title=list(text="Location")))
+             legend = list(title=list(text="Location"))) %>% 
+      add_markers(showlegend=F, size=I(8))
     
   }) 
   
