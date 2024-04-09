@@ -8,8 +8,17 @@ library(glue)
 library(plotly)
 
 # Define UI for application that draws a histogram
-ui <- page_navbar(title="gRs Analysis Tool",
-                  #Main Page  
+ui <- page_navbar(title="gRs Analysis Tool", 
+                  theme = bs_theme(bg =  "#ffffff",
+                                   fg = "#00353E",
+                                   primary = "#00353E",
+                                   font_scale = NULL,
+                                   preset = "bootstrap",
+                                   secondary = "#008745",
+                                   success = "#008745", 
+                                 #  "body-bg"="#00353E"
+                  ),
+                  # #Main Page
                   nav_panel("Mann-Kendall", 
                             page_sidebar(sidebar = accordion(
                               accordion_panel("Data_Upload", 
@@ -59,7 +68,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
                               navset_card_tab(
                                 nav_panel("Trend Heatmap", 
                                           card(
-                                            plotOutput("mann_kendall_heatmap"), 
+                                            plotlyOutput("mann_kendall_heatmap"), 
                                             full_screen = TRUE)),
                                 nav_panel("Results Table", 
                                           card( 
@@ -67,7 +76,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                             full_screen = TRUE)), 
                                 nav_panel("Increasing Trends",
                                           card(
-                                            plotOutput("mk_increasing"), 
+                                            plotlyOutput("mk_increasing"), 
                                             full_screen=TRUE))
                                 
                               )
@@ -154,10 +163,10 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                                                 label = "Facet by Location", 
                                                                 value = FALSE),
                                                                 open = FALSE),
-                                                  plotOutput("conc_histogram")), full_screen = TRUE),
+                                                  plotlyOutput("conc_histogram")), full_screen = TRUE),
                                            
                                            card(card_header("Boxplot"),
-                                                plotOutput("conc_boxplot"), full_screen = TRUE)
+                                                plotlyOutput("conc_boxplot"), full_screen = TRUE)
                                            
                                            
                             ))),
@@ -180,7 +189,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                     uiOutput(outputId = "facet_locations")) 
                               ),
                               card(
-                                plotOutput("facet_plot")
+                                plotlyOutput("facet_plot")
                               )  )
                             
                   )
@@ -192,6 +201,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
 # Define server logic required to make visualisations
 server <- function(input, output) {
   
+  
   file_data <- reactive({
     
     file <- input$file_input
@@ -200,9 +210,6 @@ server <- function(input, output) {
     
     if(!is.null(file) & lor_check){data_processor(file$datapath) %>% half_lor()}
     else if(!is.null(file) & lor_check==FALSE){data_processor(file$datapath)}
-    
-    
-    
   })
   
   mk_results <- eventReactive(input$mk_button, {
@@ -210,22 +217,27 @@ server <- function(input, output) {
     file_data() %>% 
       filter(chem_name %in% input$analyte_input, 
              location_code %in% input$location_input) %>% 
-      mann_kendall_test()
+      mutate(location_code = factor(location_code, levels = input$location_input),
+             chem_name = factor(chem_name, levels = input$analyte_input)) %>% 
+      mann_kendall_test() 
     
   })
   
   
-  output$mann_kendall_heatmap <- renderPlot({
+  output$mann_kendall_heatmap <- renderPlotly({
     req(mk_results())
     
-    mk_results() %>% 
+    heatmap <- mk_results() %>% 
       mann_kendall_heatmap(label_text_size = input$mk_trend_label, 
                            width = input$mk_label_width, 
                            plot_title = input$mk_title) + 
       theme(axis.text.y = element_text(size = input$mk_y_text),
             axis.text.x = element_text(size=input$mk_x_text), 
             legend.text = element_text(size=input$mk_legend_text), 
-            title = element_text(size=input$mk_title_size, face = "bold"))
+            title = element_text(size=input$mk_title_size, face = "bold"))+
+      labs(fill="Trend")
+    
+    plotly::ggplotly(heatmap)
   })
   
   output$mann_kendall_table <- DT::renderDataTable({    
@@ -248,10 +260,10 @@ server <- function(input, output) {
                                                      c("All",10,25,50))))
   })
   
-  output$mk_increasing <- renderPlot({
+  output$mk_increasing <- renderPlotly({
     req(mk_results())
     
-    mk_results() %>% 
+    increasing_p <- mk_results() %>% 
       filter(trend == "Increasing") %>% 
       unnest(data) %>% 
       mutate(chem_name = glue('{chem_name} ({output_unit})')) %>% 
@@ -263,6 +275,8 @@ server <- function(input, output) {
       labs(x=NULL, y="Concentration", colour=NULL)+
       theme(strip.background = element_rect(fill=NA, colour="black"),
             strip.text = element_text(colour="black"))
+    
+    plotly::ggplotly(increasing_p, dynamicTicks = T)
     
   })
   
@@ -281,11 +295,16 @@ server <- function(input, output) {
   output$location_selector <- renderUI({
     
     req(file_data())
-    selectInput("location_input", 
-                label = "Select Locations", 
-                choices = file_data() %>% distinct(location_code),
-                selected = file_data()$location_code %>% unique(), 
+    selectInput("location_input",
+                label = "Select Locations",
+                choices = file_data() %>%  
+                  arrange(chem_group) %>% 
+                  distinct(location_code),
+                selected = file_data()$location_code %>% unique(),
                 multiple = TRUE)
+    
+    
+    
     
   })
   
@@ -391,12 +410,13 @@ server <- function(input, output) {
               type = "scatter", 
               mode="lines") %>%
       layout(xaxis = list(title = ""), 
-             yaxis = list(title = glue('Concentration ({y_unit})')), legend = list(title=list(text="Location")))
+             yaxis = list(title = glue('Concentration ({y_unit})')), 
+             legend = list(title=list(text="Location")))
     
   }) 
   
   
-  output$conc_histogram <- renderPlot({
+  output$conc_histogram <- renderPlotly({
     req(plotting_data())
     
     date_range <- input$plotting_date
@@ -405,30 +425,54 @@ server <- function(input, output) {
       filter(chem_name %in% input$plotting_analytes, 
              date >= date_range[1] & date <= date_range[2])
     
-    binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
+    #binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
     
+    #breaks <- pretty(range(hist_data$concentration),
+                     # n = nclass.Sturges(hist_data$concentration),
+                     # min.n = 1)
     y_unit <- unique(hist_data$output_unit)
     
-    hist_plot <- hist_data %>% 
-      ggplot(aes(concentration))+
-      geom_histogram(fill="steelblue1", colour="black", 
-                     binwidth = binwidth)+
-      theme_light()+
-      labs(x=glue('Concentration ({y_unit})'), y="Count")
+    if(input$bin_selector!=0){
+      
+      hist_plot <- hist_data %>% 
+        ggplot(aes(concentration))+
+        geom_histogram(fill="steelblue1", colour="black", binwidth=input$bin_selector)+
+        theme_light()+
+        labs(x=glue('Concentration ({y_unit})'), y="Count")
+      
+    } else{
+      
+      #sturges method for calculating breaks
+      breaks <- pretty(range(hist_data$concentration),
+                        n = nclass.Sturges(hist_data$concentration),
+                        min.n = 1)
+                       
+      hist_plot <- hist_data %>% 
+        ggplot(aes(concentration))+
+        geom_histogram(fill="steelblue1", colour="black", breaks = breaks)+
+        theme_light()+
+        labs(x=glue('Concentration ({y_unit})'), y="Count")
+      
+      
+    }
     
     if(input$facet_check){
-      hist_plot+
+      plotly::ggplotly(hist_plot+
         facet_wrap(~location_code)+
         theme(strip.background = element_rect(fill=NA, colour="black"),
-              strip.text = element_text(colour="black"))}
+              strip.text = element_text(colour="black")))
+        }
     else{
-      hist_plot} 
+     plotly::ggplotly(hist_plot)
+      } 
   }
   ) 
   
   
-  output$conc_boxplot <- renderPlot({
+  output$conc_boxplot <- renderPlotly({
     req(plotting_data())
+    
+    establish_plotting_variables(data = file_data())
     
     date_range <- input$plotting_date
     
@@ -439,14 +483,48 @@ server <- function(input, output) {
     
     y_unit <- unique(boxplot_data$output_unit)
     
-    bplot <- boxplot_data %>% 
-      ggplot(aes(location_code, concentration, fill=location_code))+
-      geom_boxplot(alpha=0.4, outlier.shape = NA, show.legend = FALSE)+
-      geom_jitter(shape=21, alpha=0.4, show.legend = FALSE)+
-      theme_light()+
-      scale_fill_manual(breaks = waiver(), values = location_colours)+
-      labs(x=NULL, y=glue("Concentration ({y_unit})"))+
-      scale_y_continuous(limits = c(input$min_conc, input$max_conc))
+    # bplot <- boxplot_data %>% 
+    #   ggplot(aes(location_code, concentration, fill=location_code))+
+    #   geom_boxplot(alpha=0.4, outlier.shape = NA, show.legend = FALSE)+
+    #   geom_jitter(shape=21, alpha=0.4, show.legend = FALSE)+
+    #   theme_light()+
+    #   scale_fill_manual(breaks = waiver(), values = location_colours)+
+    #   labs(x=NULL, y=glue("Concentration ({y_unit})"))+
+    #   scale_y_continuous(limits = c(input$min_conc, input$max_conc))
+    
+    
+    
+    remove_boxplot_outliers <- function(fig){
+      stopifnot("plotly" %in% class(fig))
+      fig$x$data <- lapply(
+        fig$x$data,
+        \(i){
+          if(i$type != "box") return(i)
+          i$marker = list(opacity = 0)
+          i$hoverinfo = "none"
+          i
+        }
+      )
+      fig
+    }
+    
+    set.seed(1994)
+    bplot <- ggplotly( boxplot_data %>% 
+                         ggplot(aes(location_code, concentration, fill=location_code))+
+                         geom_jitter(shape=21, alpha=0.6, show.legend = FALSE, size=1.2)+
+                         geom_boxplot(alpha=0.4, outlier.shape = NA, show.legend = FALSE)+
+                         theme_light()+
+                         scale_fill_manual(breaks = waiver(), values = location_colours)+
+                         labs(x=NULL, y=glue("Concentration ({y_unit})"))
+    ) %>% 
+      plotly::hide_legend() %>% 
+      remove_boxplot_outliers()
+    
+    
+  
+    
+    
+    
     
     if(input$criteria_check){
       
@@ -522,16 +600,21 @@ server <- function(input, output) {
     
   })  
   
-  output$facet_plot <- renderPlot({
+  output$facet_plot <- renderPlotly({
     
     req(facet_data())
     
-    facet_data() %>% 
+    facet_p <- facet_data() %>% 
       mutate(chem_name = glue('{chem_name} ({output_unit})')) %>% 
       timeseries_plot()+
       facet_wrap(~chem_name, scales="free_y")+
+      theme_light()+
       theme(strip.background =element_rect(fill=NA, colour = "black"))+
-      theme(strip.text = element_text(colour = 'black'))
+      theme(strip.text = element_text(colour = 'black')) +
+      labs(x=NULL, y="Concentration", colour="Location")+
+      scale_y_continuous(labels = scales::label_number())
+    
+    plotly::ggplotly(facet_p, dynamicTicks = TRUE)
     
   })
   
