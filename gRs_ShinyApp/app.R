@@ -285,7 +285,7 @@ server <- function(input, output) {
     
     req(file_data())
     selectInput("analyte_input", 
-                label = "Select Analytes", 
+                label = "Select and Order Analytes", 
                 choices = file_data() %>% distinct(chem_name),
                 selected = file_data()$chem_name %>% unique(), 
                 multiple = TRUE)
@@ -296,7 +296,7 @@ server <- function(input, output) {
     
     req(file_data())
     selectInput("location_input",
-                label = "Select Locations",
+                label = "Select and Order Locations",
                 choices = file_data() %>%  
                   arrange(chem_group) %>% 
                   distinct(location_code),
