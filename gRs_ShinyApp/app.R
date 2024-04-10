@@ -317,9 +317,15 @@ server <- function(input, output) {
     
     require(mk_results)
     
-    trend_options <- mk_results() %>% distinct(trend)
-    
-    selectInput(inputId = "trend_select", label = "Show Trend", choices = trend_options, selected = "Increasing", multiple = FALSE)
+    radioButtons(inputId = "trend_select",
+                label = "Show Trend", 
+                 choices = c("Increasing", 
+                             "Probably Increasing", 
+                             "Stable", 
+                             "No Significant Trend", 
+                             "Probably Decreasing", 
+                             "No Significant Trend"), 
+                 selected = "Increasing")
     
   })
   
