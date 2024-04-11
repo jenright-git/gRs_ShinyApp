@@ -432,8 +432,11 @@ server <- function(input, output) {
               mode="lines") %>%
       layout(xaxis = list(title = ""), 
              yaxis = list(title = glue('Concentration ({y_unit})')), 
-             legend = list(title=list(text="Location"))) %>% 
-      add_markers(showlegend=F, size=I(8))
+             legend = list(title=list(text=""))) %>%   # use center of legend as anchor
+      add_markers(showlegend=F, size=I(8)) %>% 
+      layout(legend = list(orientation = "h",   # show entries horizontally
+                           xanchor = "center",  # use center of legend as anchor
+                           x = 0.5)) 
     
   }) 
   
