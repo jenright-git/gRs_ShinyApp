@@ -79,7 +79,13 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                 nav_panel("Increasing Trends",
                                           card(layout_sidebar(
                                             sidebar = sidebar(uiOutput(
-                                              outputId = "trend_select"), open = TRUE),
+                                              outputId = "trend_select"),
+                                               radioButtons(inputId = "trend_method",
+                                                            label = "Trend Method",
+                                                        choiceValues = c("loess", "lm"),
+                                                        selected = "loess", 
+                                                choiceNames = c("Smoothed", "Linear")),
+                                              open = TRUE),
                                             plotlyOutput("mk_increasing"), 
                                             full_screen=TRUE)))
                                 
@@ -274,7 +280,7 @@ server <- function(input, output) {
       ggplot(aes(date, concentration, colour=location_code))+
       geom_point(alpha=0.6, size=1.2)+
       facet_wrap(~chem_name, scales="free_y")+
-      geom_smooth(se=F)+
+      geom_smooth(se=F, method=input$trend_method)+
       theme_light()+
       labs(x=NULL, y="Concentration", colour=NULL)+
       theme(strip.background = element_rect(fill=NA, colour="black"),
@@ -324,7 +330,7 @@ server <- function(input, output) {
                              "Stable", 
                              "No Significant Trend", 
                              "Probably Decreasing", 
-                             "No Significant Trend"), 
+                             "Decreasing"), 
                  selected = "Increasing")
     
   })
@@ -424,7 +430,7 @@ server <- function(input, output) {
     
     y_unit <- unique(df$output_unit)
     
-    df %>% 
+   ts2_plot <-  df %>% 
       plot_ly(x=~date, y=~concentration, 
               color=~location_code, 
               colors = location_colours, 
@@ -437,6 +443,19 @@ server <- function(input, output) {
       layout(legend = list(orientation = "h",   # show entries horizontally
                            xanchor = "center",  # use center of legend as anchor
                            x = 0.5)) 
+   
+   if(input$criteria_check){
+     ts2_plot %>% 
+       add_segments(x=min(df$date), 
+                    xend = max(df$date), 
+                    y=input$criteria_value, 
+                    yend = input$criteria_value, 
+                    color=I(input$criteria_colour), 
+                    linetype=I("dash"), name=input$criteria_label)
+   }
+   else{
+     ts2_plot
+   }
     
   }) 
   
@@ -536,7 +555,7 @@ server <- function(input, output) {
     set.seed(1994)
     bplot <- ggplotly( boxplot_data %>% 
                          ggplot(aes(location_code, concentration, fill=location_code))+
-                         geom_jitter(shape=21, alpha=0.6, show.legend = FALSE, size=1.2)+
+                         geom_jitter(shape=21, alpha=0.6, show.legend = FALSE, size=1.2, height = 0)+
                          geom_boxplot(alpha=0.4, outlier.shape = NA, show.legend = FALSE)+
                          theme_light()+
                          scale_fill_manual(breaks = waiver(), values = location_colours)+
@@ -553,11 +572,15 @@ server <- function(input, output) {
     
     if(input$criteria_check){
       
-      bplot + 
-        scale_y_limitval(marker_values = c(input$criteria_value), 
-                         marker_labels = input$criteria_label, 
-                         marker_colours = c(input$criteria_colour))
-      
+      bplot 
+        
+        
+        
+        
+        # scale_y_limitval(marker_values = c(input$criteria_value), 
+        #                  marker_labels = input$criteria_label, 
+        #                  marker_colours = c(input$criteria_colour))
+        # 
       
     } else{
       
