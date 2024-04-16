@@ -18,7 +18,7 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                    preset = "bootstrap",
                                    secondary = "#008745",
                                    success = "#008745", 
-                                 #  "body-bg"="#00353E"
+                                  ### "body-bg"="#00353A10"
                   ),
                   # #Main Page
                   nav_panel("Mann-Kendall", 
