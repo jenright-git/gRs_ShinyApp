@@ -6,6 +6,9 @@ library(gRs)
 library(tidyverse)
 library(glue)
 library(plotly)
+library(thematic)
+
+thematic::thematic_on()
 
 options(shiny.maxRequestSize = 30*1024^2)
 
@@ -523,7 +526,8 @@ server <- function(input, output) {
     boxplot_data <- 
       plotting_data() %>% 
       filter(chem_name %in% input$plotting_analytes, 
-             date >= date_range[1] & date <= date_range[2])
+             date >= date_range[1] & date <= date_range[2]) %>% 
+      mutate(location_code = fct_reorder(location_code, concentration, .fun = median, .desc = TRUE))
     
     y_unit <- unique(boxplot_data$output_unit)
     
@@ -573,7 +577,16 @@ server <- function(input, output) {
     if(input$criteria_check){
       
       bplot 
-        
+      # %>% 
+      #   plotly::hide_legend() %>% 
+      #   add_segments(x=min(df$date), 
+      #                        xend = max(df$date), 
+      #                        y=input$criteria_value, 
+      #                        yend = input$criteria_value, 
+      #                        color=I(input$criteria_colour), 
+      #                        linetype=I("dash"), name=input$criteria_label) %>% 
+      #   remove_boxplot_outliers()
+      #   
         
         
         
@@ -605,6 +618,8 @@ server <- function(input, output) {
                 `25th Percentile` = quantile(concentration, 0.25, na.rm=T),
                 `50th Percentile` = quantile(concentration, 0.5, na.rm=T),
                 `75th Percentile` = quantile(concentration, 0.75, na.rm=T),
+                `80th Percentile` = quantile(concentration, 0.80, na.rm=T),
+                `85th Percentile` = quantile(concentration, 0.85, na.rm=T),
                 `90th Percentile` = quantile(concentration, 0.9, na.rm=T),
                 `95th Percentile` = quantile(concentration, 0.95, na.rm=T),
       ) %>% 
