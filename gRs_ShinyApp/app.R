@@ -7,6 +7,7 @@ library(tidyverse)
 library(glue)
 library(plotly)
 library(thematic)
+library(bsicons)
 
 thematic::thematic_on()
 
@@ -76,9 +77,10 @@ ui <- page_navbar(title="gRs Analysis Tool",
                                             plotlyOutput("mann_kendall_heatmap"), 
                                             full_screen = TRUE)),
                                 nav_panel("Results Table", 
-                                          card( 
-                                            DT::dataTableOutput("mann_kendall_table"),
-                                            full_screen = TRUE)), 
+                                          card( card_header("Table Options",  #class = "d-flex justify-content-end",
+                                                            popover(bs_icon("gear"), checkboxInput(inputId = "mk_table_switch", label = "Flip Table", value = FALSE)),
+                                            DT::dataTableOutput("mann_kendall_table"), 
+                                            full_screen = TRUE))), 
                                 nav_panel("Increasing Trends",
                                           card(layout_sidebar(
                                             sidebar = sidebar(uiOutput(
@@ -261,6 +263,22 @@ server <- function(input, output) {
     )
     req(mk_results())
     
+    if(input$mk_table_switch){
+      
+      mk_results() %>% 
+        select(location_code, chem_name, trend) %>% 
+        arrange(location_code, chem_name) %>% 
+        pivot_wider(names_from = chem_name, values_from = trend) %>% 
+        DT::datatable(., extensions = "Buttons", 
+                      filter = list(position = "top"),
+                      options = list(dom = 'Blfrtip', 
+                                     buttons = c("copy", "csv", "excel", "pdf", "print"),
+                                     lengthMenu = list(c(-1, 10,25,50),
+                                                       c("All",10,25,50))))
+      
+      
+    } else{
+    
     mk_results() %>% 
       select(-data) %>% 
       arrange(location_code) %>% 
@@ -271,6 +289,7 @@ server <- function(input, output) {
                                    buttons = c("copy", "csv", "excel", "pdf", "print"),
                                    lengthMenu = list(c(-1, 10,25,50),
                                                      c("All",10,25,50))))
+    }
   })
   
   output$mk_increasing <- renderPlotly({
