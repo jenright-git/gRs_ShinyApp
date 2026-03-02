@@ -43,6 +43,18 @@ ui <- page_navbar(
       font-size:   11px !important;
       text-align:  center !important;
     }
+    #mk_table_switch {
+      width:        18px !important;
+      height:       18px !important;
+      cursor:       pointer;
+      margin-right: 6px;
+    }
+    .shiny-input-container:has(#mk_table_switch) label {
+      font-size:      13px !important;
+      font-weight:    600  !important;
+      cursor:         pointer;
+      vertical-align: middle;
+    }
   "
   ))),
   # #Main Page
@@ -130,33 +142,53 @@ ui <- page_navbar(
       ),
       navset_card_tab(
         nav_panel(
+          "Results Table",
+          card(
+            card_header("Table Options"),
+            tags$div(
+              style = "display:flex; align-items:center; gap:12px; padding:8px 16px 6px 16px;",
+              tags$div(
+                style = paste(
+                  "display:inline-block;",
+                  "border:2px solid #008768;",
+                  "border-radius:6px;",
+                  "padding:5px 14px;",
+                  "background-color:#f0faf6;"
+                ),
+                tags$p(
+                  style = paste(
+                    "font-weight:bold;",
+                    "font-size:11px;",
+                    "color:#008768;",
+                    "margin:0 0 4px 0;",
+                    "text-transform:uppercase;",
+                    "letter-spacing:0.5px;"
+                  ),
+                  "Table View"
+                ),
+                checkboxInput(
+                  inputId = "mk_table_switch",
+                  label = "Show Test Statistics",
+                  value = FALSE
+                )
+              ),
+              downloadButton(
+                "download_mk_excel",
+                label = "Download Excel",
+                icon = shiny::icon("file-excel"),
+                class = "btn-sm"
+              )
+            ),
+            DT::dataTableOutput("mann_kendall_table"),
+            full_screen = TRUE
+          )
+        ),
+        nav_panel(
           "Trend Heatmap",
           card(
             plotlyOutput("mann_kendall_heatmap"),
             full_screen = TRUE
           )
-        ),
-        nav_panel(
-          "Results Table",
-          card(card_header(
-            "Table Options", #class = "d-flex justify-content-end",
-            popover(
-              bs_icon("gear"),
-              checkboxInput(
-                inputId = "mk_table_switch",
-                label = "Show Test Statistics",
-                value = TRUE
-              )
-            ),
-            downloadButton(
-              "download_mk_excel",
-              label = "Download Excel",
-              icon = shiny::icon("file-excel"),
-              class = "btn-sm"
-            ),
-            DT::dataTableOutput("mann_kendall_table"),
-            full_screen = TRUE
-          ))
         ),
         nav_panel(
           "Increasing Trends",
@@ -409,7 +441,7 @@ server <- function(input, output) {
   output$mann_kendall_table <- DT::renderDataTable({
     req(mk_results())
 
-    if (input$mk_table_switch) {
+    if (!input$mk_table_switch) {
       wide_tbl <- mk_results() %>%
         select(location_code, chem_name, trend) %>%
         arrange(location_code, chem_name) %>%
@@ -959,7 +991,7 @@ server <- function(input, output) {
       }
 
       # ── Build sheet(s) ────────────────────────────────────────────────────
-      if (input$mk_table_switch) {
+      if (!input$mk_table_switch) {
         export_data <- mk_results() %>%
           select(location_code, chem_name, trend) %>%
           arrange(location_code, chem_name) %>%
