@@ -8,6 +8,7 @@ library(glue)
 library(plotly)
 library(thematic)
 library(bsicons)
+library(openxlsx)
 
 thematic::thematic_on()
 
@@ -26,6 +27,24 @@ ui <- page_navbar(
     success = "#008745",
     ### "body-bg"="#00353A10"
   ),
+  # MK results table styling ─────────────────────────────────────────────
+  tags$head(tags$style(HTML(
+    "
+    #mann_kendall_table thead tr:first-child th {
+      background-color: #008768 !important;
+      color:            #FFFFFF !important;
+      font-weight:      bold    !important;
+      font-family:      Arial, sans-serif !important;
+      border:           1px solid #008768 !important;
+    }
+    #mann_kendall_table tbody td {
+      border:      1px solid #008768 !important;
+      font-family: Arial, sans-serif !important;
+      font-size:   11px !important;
+      text-align:  center !important;
+    }
+  "
+  ))),
   # #Main Page
   nav_panel(
     "Mann-Kendall",
@@ -128,6 +147,12 @@ ui <- page_navbar(
                 label = "Show Test Statistics",
                 value = TRUE
               )
+            ),
+            downloadButton(
+              "download_mk_excel",
+              label = "Download Excel",
+              icon = shiny::icon("file-excel"),
+              class = "btn-sm"
             ),
             DT::dataTableOutput("mann_kendall_table"),
             full_screen = TRUE
@@ -324,6 +349,18 @@ ui <- page_navbar(
 
 # Define server logic required to make visualisations
 server <- function(input, output) {
+  mk_trend_colors <- c(
+    "Increasing" = "#FF0000",
+    "Probably Increasing" = "#ff6700",
+    "Stable" = "#D9D9D9",
+    "No Significant Trend" = "#BFBFBF",
+    "Probably Decreasing" = "#92D050",
+    "Decreasing" = "#00B050"
+  )
+
+  # Shared header / border colour for DT and Excel export
+  mk_header_col <- "#008768"
+
   file_data <- reactive({
     file <- input$file_input
 
@@ -370,26 +407,29 @@ server <- function(input, output) {
   })
 
   output$mann_kendall_table <- DT::renderDataTable({
-    options = list(
-      dom = "Blfrtrip",
-      buttons = c("copy", "csv", "excel", "pdf", "print"),
-      lengthMenu = list(c(10, 25, 50, -1), c(10, 25, 50), "All")
-    )
     req(mk_results())
 
     if (input$mk_table_switch) {
-      mk_results() %>%
+      wide_tbl <- mk_results() %>%
         select(location_code, chem_name, trend) %>%
         arrange(location_code, chem_name) %>%
-        pivot_wider(names_from = chem_name, values_from = trend) %>%
+        pivot_wider(names_from = chem_name, values_from = trend)
+
+      analyte_cols <- setdiff(names(wide_tbl), "location_code")
+
+      wide_tbl %>%
         DT::datatable(
           .,
           extensions = "Buttons",
-          filter = list(position = "top"),
-          options = list(
-            dom = 'Blfrtip',
-            buttons = c("copy", "csv", "excel", "pdf", "print"),
-            lengthMenu = list(c(-1, 10, 25, 50), c("All", 10, 25, 50))
+          filter = list(position = "top")
+        ) %>%
+        DT::formatStyle(
+          columns = analyte_cols,
+          color = "black",
+          backgroundColor = DT::styleEqual(
+            names(mk_trend_colors),
+            unname(mk_trend_colors),
+            default = NULL
           )
         )
     } else {
@@ -400,11 +440,15 @@ server <- function(input, output) {
         DT::datatable(
           .,
           extensions = "Buttons",
-          filter = list(position = "top"),
-          options = list(
-            dom = 'Blfrtip',
-            buttons = c("copy", "csv", "excel", "pdf", "print"),
-            lengthMenu = list(c(-1, 10, 25, 50), c("All", 10, 25, 50))
+          filter = list(position = "top")
+        ) %>%
+        DT::formatStyle(
+          columns = "trend",
+          color = "black",
+          backgroundColor = DT::styleEqual(
+            names(mk_trend_colors),
+            unname(mk_trend_colors),
+            default = NULL
           )
         )
     }
@@ -815,6 +859,129 @@ server <- function(input, output) {
       multiple = TRUE
     )
   })
+
+  output$download_mk_excel <- downloadHandler(
+    filename = function() {
+      paste0("mk_trends_", Sys.Date(), ".xlsx")
+    },
+    content = function(file) {
+      req(mk_results())
+
+      wb <- openxlsx::createWorkbook()
+
+      # ── Styles ────────────────────────────────────────────────────────────
+      header_style <- openxlsx::createStyle(
+        fontName = "Arial",
+        fontSize = 11,
+        fontColour = "#FFFFFF",
+        fgFill = mk_header_col,
+        halign = "center",
+        valign = "center",
+        textDecoration = "bold",
+        border = "TopBottomLeftRight",
+        borderColour = mk_header_col
+      )
+
+      data_style <- openxlsx::createStyle(
+        fontName = "Arial",
+        fontSize = 11,
+        fontColour = "#000000",
+        halign = "center",
+        valign = "center",
+        border = "TopBottomLeftRight",
+        borderColour = mk_header_col
+      )
+
+      # One full style per trend (fill + matching border/font)
+      trend_styles <- lapply(mk_trend_colors, function(hex) {
+        openxlsx::createStyle(
+          fontName = "Arial",
+          fontSize = 11,
+          fontColour = "#000000",
+          fgFill = hex,
+          halign = "center",
+          valign = "center",
+          border = "TopBottomLeftRight",
+          borderColour = mk_header_col
+        )
+      })
+
+      # ── Helper: write header + data + trend fills ─────────────────────────
+      format_sheet <- function(wb, sheet_name, data) {
+        nr <- nrow(data)
+        nc <- ncol(data)
+
+        # Header row
+        openxlsx::addStyle(
+          wb,
+          sheet_name,
+          header_style,
+          rows = 1,
+          cols = seq_len(nc),
+          gridExpand = TRUE
+        )
+
+        # All data cells with base style
+        openxlsx::addStyle(
+          wb,
+          sheet_name,
+          data_style,
+          rows = seq(2, nr + 1),
+          cols = seq_len(nc),
+          gridExpand = TRUE
+        )
+
+        # Overwrite trend cells with colour style
+        for (col_idx in seq_len(nc)) {
+          col_vals <- data[[col_idx]]
+          for (trend in names(trend_styles)) {
+            matching_rows <- which(col_vals == trend)
+            if (length(matching_rows) > 0) {
+              openxlsx::addStyle(
+                wb,
+                sheet_name,
+                style = trend_styles[[trend]],
+                rows = matching_rows + 1L,
+                cols = col_idx,
+                stack = FALSE
+              )
+            }
+          }
+        }
+
+        # Auto-fit column widths
+        openxlsx::setColWidths(
+          wb,
+          sheet_name,
+          cols = seq_len(nc),
+          widths = "auto"
+        )
+      }
+
+      # ── Build sheet(s) ────────────────────────────────────────────────────
+      if (input$mk_table_switch) {
+        export_data <- mk_results() %>%
+          select(location_code, chem_name, trend) %>%
+          arrange(location_code, chem_name) %>%
+          pivot_wider(names_from = chem_name, values_from = trend)
+
+        openxlsx::addWorksheet(wb, "Trend Summary")
+        openxlsx::writeData(wb, sheet = "Trend Summary", export_data)
+        format_sheet(wb, "Trend Summary", export_data)
+      } else {
+        export_data <- mk_results() %>%
+          select(-data) %>%
+          arrange(location_code) %>%
+          mutate_if(is.numeric, signif, 4)
+
+        openxlsx::addWorksheet(wb, "Test Statistics")
+        openxlsx::writeData(wb, sheet = "Test Statistics", export_data)
+        format_sheet(wb, "Test Statistics", export_data)
+      }
+
+      openxlsx::saveWorkbook(wb, file)
+    }
+  )
 
   output$facet_plot <- renderPlotly({
     req(facet_data())
