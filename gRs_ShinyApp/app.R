@@ -360,15 +360,41 @@ ui <- page_navbar(
           selectInput(
             inputId = "ts_colour_theme",
             label = "Colour Theme",
-            choices = c(
-              "AECOM (Default)" = "aecom",
-              "Viridis" = "viridis",
-              "Plasma" = "plasma",
-              "Brewer Set1" = "Set1",
-              "Brewer Set2" = "Set2",
-              "Brewer Dark2" = "Dark2",
-              "Brewer Paired" = "Paired",
-              "Brewer Spectral" = "Spectral"
+            choices = list(
+              "Custom" = c(
+                "Default" = "aecom",
+                "ggplot2 Default" = "ggplot2_default"
+              ),
+              "Viridis" = c(
+                "Viridis" = "viridis",
+                "Plasma" = "plasma",
+                "Magma" = "magma",
+                "Inferno" = "inferno",
+                "Cividis" = "cividis",
+                "Mako" = "mako",
+                "Rocket" = "rocket",
+                "Turbo" = "turbo"
+              ),
+              "Brewer — Qualitative" = c(
+                "Set 1" = "Set1",
+                "Set 2" = "Set2",
+                "Dark 2" = "Dark2",
+                "Paired" = "Paired",
+                "Accent" = "Accent",
+                "Pastel 1" = "Pastel1",
+                "Pastel 2" = "Pastel2"
+              ),
+              "Brewer — Diverging" = c(
+                "Spectral" = "Spectral",
+                "RdYlBu" = "RdYlBu",
+                "RdYlGn" = "RdYlGn",
+                "BrBG" = "BrBG",
+                "PiYG" = "PiYG",
+                "PRGn" = "PRGn",
+                "PuOr" = "PuOr",
+                "RdBu" = "RdBu",
+                "RdGy" = "RdGy"
+              )
             ),
             selected = "aecom",
             width = "100%"
@@ -937,8 +963,15 @@ server <- function(input, output) {
       switch(
         input$ts_colour_theme,
         "aecom" = ggplot2::scale_colour_manual(values = location_colours),
+        "ggplot2_default" = ggplot2::scale_colour_hue(),
         "viridis" = ggplot2::scale_colour_viridis_d(option = "viridis"),
         "plasma" = ggplot2::scale_colour_viridis_d(option = "plasma"),
+        "magma" = ggplot2::scale_colour_viridis_d(option = "magma"),
+        "inferno" = ggplot2::scale_colour_viridis_d(option = "inferno"),
+        "cividis" = ggplot2::scale_colour_viridis_d(option = "cividis"),
+        "mako" = ggplot2::scale_colour_viridis_d(option = "mako"),
+        "rocket" = ggplot2::scale_colour_viridis_d(option = "rocket"),
+        "turbo" = ggplot2::scale_colour_viridis_d(option = "turbo"),
         ggplot2::scale_colour_brewer(palette = input$ts_colour_theme)
       )
 
@@ -948,14 +981,22 @@ server <- function(input, output) {
 
     # ── Criteria lines ───────────────────────────────────────────────────────
     # Resolve display labels (fall back if the user left the field blank)
-    crit1_label <- if (nchar(trimws(input$criteria_label))  > 0) input$criteria_label  else "Criteria 1"
-    crit2_label <- if (nchar(trimws(input$criteria2_label)) > 0) input$criteria2_label else "Criteria 2"
+    crit1_label <- if (nchar(trimws(input$criteria_label)) > 0) {
+      input$criteria_label
+    } else {
+      "Criteria 1"
+    }
+    crit2_label <- if (nchar(trimws(input$criteria2_label)) > 0) {
+      input$criteria2_label
+    } else {
+      "Criteria 2"
+    }
 
     # Map criteria via the LINETYPE aesthetic — a completely separate scale
     # from the location COLOUR scale — so existing location legend entries are
     # never touched.  guide_legend(override.aes) forces each key glyph to
     # display the correct criteria colour even though colour is a fixed param.
-    lt_values  <- c()
+    lt_values <- c()
     lt_colours <- c()
 
     if (input$criteria_check) {
@@ -963,12 +1004,12 @@ server <- function(input, output) {
         ggplot2::geom_hline(
           data = data.frame(yint = input$criteria_value, lbl = crit1_label),
           ggplot2::aes(yintercept = yint, linetype = lbl),
-          colour      = input$criteria_colour,
-          linewidth   = 0.7,
+          colour = input$criteria_colour,
+          linewidth = 0.7,
           show.legend = TRUE
         )
       lt_values[crit1_label] <- "dashed"
-      lt_colours             <- c(lt_colours, input$criteria_colour)
+      lt_colours <- c(lt_colours, input$criteria_colour)
     }
 
     if (input$criteria2_check) {
@@ -976,20 +1017,20 @@ server <- function(input, output) {
         ggplot2::geom_hline(
           data = data.frame(yint = input$criteria2_value, lbl = crit2_label),
           ggplot2::aes(yintercept = yint, linetype = lbl),
-          colour      = input$criteria2_colour,
-          linewidth   = 0.7,
+          colour = input$criteria2_colour,
+          linewidth = 0.7,
           show.legend = TRUE
         )
       lt_values[crit2_label] <- "dashed"
-      lt_colours             <- c(lt_colours, input$criteria2_colour)
+      lt_colours <- c(lt_colours, input$criteria2_colour)
     }
 
     if (input$criteria_check || input$criteria2_check) {
       plot <- plot +
         ggplot2::scale_linetype_manual(
           values = lt_values,
-          name   = NULL,
-          guide  = ggplot2::guide_legend(
+          name = NULL,
+          guide = ggplot2::guide_legend(
             override.aes = list(colour = lt_colours, linewidth = 0.7)
           )
         )
@@ -1031,27 +1072,27 @@ server <- function(input, output) {
         date >= date_range[1] & date <= date_range[2]
       )
 
-    y_unit   <- unique(hist_data$output_unit)
-    x_hjust  <- if (input$ts_x_angle > 0) 1 else 0.5
+    y_unit <- unique(hist_data$output_unit)
+    x_hjust <- if (input$ts_x_angle > 0) 1 else 0.5
 
     black_text <- ggplot2::theme(
-      axis.text.x  = ggplot2::element_text(
+      axis.text.x = ggplot2::element_text(
         colour = "black",
-        size   = input$ts_date_size,
-        angle  = input$ts_x_angle,
-        hjust  = x_hjust
+        size = input$ts_date_size,
+        angle = input$ts_x_angle,
+        hjust = x_hjust
       ),
-      axis.text.y  = ggplot2::element_text(
+      axis.text.y = ggplot2::element_text(
         colour = "black",
-        size   = input$ts_y_label_size
+        size = input$ts_y_label_size
       ),
       axis.title.x = ggplot2::element_text(colour = "black"),
       axis.title.y = ggplot2::element_text(
         colour = "black",
-        size   = input$ts_y_title_size
+        size = input$ts_y_title_size
       ),
       strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
-      strip.text       = ggplot2::element_text(colour = "black")
+      strip.text = ggplot2::element_text(colour = "black")
     )
 
     if (input$bin_selector != 0) {
@@ -1128,7 +1169,7 @@ server <- function(input, output) {
         )
       )
 
-    y_unit  <- unique(boxplot_data$output_unit)
+    y_unit <- unique(boxplot_data$output_unit)
     x_hjust <- if (input$ts_x_angle > 0) 1 else 0.5
 
     set.seed(1994)
@@ -1151,35 +1192,69 @@ server <- function(input, output) {
       ggplot2::theme_light() +
       ggplot2::labs(x = NULL, y = glue("Concentration ({y_unit})")) +
       ggplot2::theme(
-        axis.text.x  = ggplot2::element_text(
+        axis.text.x = ggplot2::element_text(
           colour = "black",
-          size   = input$ts_date_size,
-          angle  = input$ts_x_angle,
-          hjust  = x_hjust
+          size = input$ts_date_size,
+          angle = input$ts_x_angle,
+          hjust = x_hjust
         ),
-        axis.text.y  = ggplot2::element_text(
+        axis.text.y = ggplot2::element_text(
           colour = "black",
-          size   = input$ts_y_label_size
+          size = input$ts_y_label_size
         ),
         axis.title.y = ggplot2::element_text(
           colour = "black",
-          size   = input$ts_y_title_size
+          size = input$ts_y_title_size
         ),
         strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
-        strip.text       = ggplot2::element_text(colour = "black"),
-        legend.position  = input$ts_legend_pos,
-        legend.text      = ggplot2::element_text(colour = "black"),
-        legend.title     = ggplot2::element_blank()
+        strip.text = ggplot2::element_text(colour = "black"),
+        legend.position = input$ts_legend_pos,
+        legend.text = ggplot2::element_text(colour = "black"),
+        legend.title = ggplot2::element_blank()
       )
 
     # Apply the same colour theme as the timeseries (fill scale for boxplot)
     bplot <- bplot +
       switch(
         input$ts_colour_theme,
-        "aecom" = ggplot2::scale_fill_manual(values = location_colours, guide = "none"),
-        "viridis" = ggplot2::scale_fill_viridis_d(option = "viridis", guide = "none"),
-        "plasma" = ggplot2::scale_fill_viridis_d(option = "plasma", guide = "none"),
-        ggplot2::scale_fill_brewer(palette = input$ts_colour_theme, guide = "none")
+        "aecom" = ggplot2::scale_fill_manual(
+          values = location_colours,
+          guide = "none"
+        ),
+        "ggplot2_default" = ggplot2::scale_fill_hue(guide = "none"),
+        "viridis" = ggplot2::scale_fill_viridis_d(
+          option = "viridis",
+          guide = "none"
+        ),
+        "plasma" = ggplot2::scale_fill_viridis_d(
+          option = "plasma",
+          guide = "none"
+        ),
+        "magma" = ggplot2::scale_fill_viridis_d(
+          option = "magma",
+          guide = "none"
+        ),
+        "inferno" = ggplot2::scale_fill_viridis_d(
+          option = "inferno",
+          guide = "none"
+        ),
+        "cividis" = ggplot2::scale_fill_viridis_d(
+          option = "cividis",
+          guide = "none"
+        ),
+        "mako" = ggplot2::scale_fill_viridis_d(option = "mako", guide = "none"),
+        "rocket" = ggplot2::scale_fill_viridis_d(
+          option = "rocket",
+          guide = "none"
+        ),
+        "turbo" = ggplot2::scale_fill_viridis_d(
+          option = "turbo",
+          guide = "none"
+        ),
+        ggplot2::scale_fill_brewer(
+          palette = input$ts_colour_theme,
+          guide = "none"
+        )
       )
 
     # ── Criteria lines with legend entries ───────────────────────────────────
