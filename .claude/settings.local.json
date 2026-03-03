@@ -5,7 +5,9 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:api.github.com)",
       "Bash(Rscript -e \"renv::status\\(\\)\")",
-      "Bash(\"C:/Program Files/R/R-4.5.0/bin/Rscript.exe\":*)"
+      "Bash(\"C:/Program Files/R/R-4.5.0/bin/Rscript.exe\":*)",
+      "Bash(powershell.exe -Command \"Get-Command Rscript -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem ''C:\\\\Program Files\\\\R'' -Recurse -Filter ''Rscript.exe'' -ErrorAction SilentlyContinue | Select -First 5 -ExpandProperty FullName; Get-ChildItem ''C:\\\\Users\\\\Enrightj\\\\AppData\\\\Local'' -Filter ''Rscript.exe'' -Recurse -ErrorAction SilentlyContinue | Select -First 5 -ExpandProperty FullName\")"
     ]
   }
 }

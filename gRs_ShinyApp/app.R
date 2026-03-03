@@ -228,55 +228,158 @@ ui <- page_navbar(
         ),
         accordion_panel(
           "Plotting Controls",
-          radioButtons(
-            inputId = "date_breaks_radio",
-            label = "Axis Date Breaks",
-            selected = "3 months",
-            inline = TRUE,
-            choiceNames = list(
-              "Week",
-              "Month",
-              "3 Months",
-              "Year",
-              "2 Years",
-              "5 Years"
-            ),
-            choiceValues = list(
-              "week",
-              "month",
-              "3 months",
-              "year",
-              "2 years",
-              "5 years"
-            )
-          ),
-          radioButtons(
-            inputId = "date_label_radio",
-            label = "Axis Date Labels",
-            choices = list("%d %b %y", "%b %y", "%B %Y", "%B %y", "%Y"),
-            selected = "%b %y",
-            inline = TRUE
+          # ── X-axis date break ──────────────────────────────────────────
+          tags$p(
+            "X-Axis Date Breaks",
+            style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
           ),
           splitLayout(
+            cellWidths = c("45%", "55%"),
+            numericInput(
+              inputId = "date_break_n",
+              label = "Interval",
+              value = 3,
+              min = 1,
+              step = 1,
+              width = "100%"
+            ),
+            selectInput(
+              inputId = "date_break_unit",
+              label = "Unit",
+              choices = c("days", "weeks", "months", "years"),
+              selected = "months",
+              width = "100%"
+            )
+          ),
+          # ── Date label format ──────────────────────────────────────────
+          selectInput(
+            inputId = "date_label_radio",
+            label = "Date Label Format",
+            choices = c(
+              "01 Jan 25" = "%d %b %y",
+              "Jan 25" = "%b %y",
+              "January 25" = "%B %y",
+              "Jan 2025" = "%b %Y",
+              "January 2025" = "%B %Y",
+              "2025" = "%Y",
+              "Q1 2025" = "%b %Y",
+              "01/01/2025" = "%d/%m/%Y",
+              "01-01-2025" = "%d-%m-%Y"
+            ),
+            selected = "%b %y",
+            width = "100%"
+          ),
+          # ── Label appearance ───────────────────────────────────────────
+          splitLayout(
+            cellWidths = c("50%", "50%"),
             numericInput(
               "ts_date_size",
-              "Date Size",
+              "X Label Size",
               10,
               min = 0,
-              width = '60%'
+              width = "100%"
             ),
             numericInput(
               "ts_x_angle",
-              "Date Angle",
+              "X Label Angle",
               0,
               min = 0,
               max = 360,
-              width = '60%'
+              width = "100%"
             )
           ),
           splitLayout(
-            numericInput("min_conc", "Min Y Conc", 0, width = '85%'),
-            numericInput("max_conc", "Max Y Conc", NA, width = '85%')
+            cellWidths = c("50%", "50%"),
+            numericInput(
+              inputId = "ts_y_label_size",
+              label = "Y Tick Label Size",
+              value = 10,
+              min = 6,
+              max = 30,
+              step = 1,
+              width = "100%"
+            ),
+            numericInput(
+              inputId = "ts_y_title_size",
+              label = "Y Axis Title Size",
+              value = 12,
+              min = 6,
+              max = 30,
+              step = 1,
+              width = "100%"
+            )
+          ),
+          # ── Y-axis limits ──────────────────────────────────────────────
+          splitLayout(
+            cellWidths = c("50%", "50%"),
+            numericInput("min_conc", "Min Y", 0, width = "100%"),
+            numericInput("max_conc", "Max Y", NA, width = "100%")
+          ),
+          # ── Line appearance ────────────────────────────────────────────
+          tags$p(
+            "Line Appearance",
+            style = "font-weight:600; font-size:12px; margin:8px 0 4px 0;"
+          ),
+          checkboxGroupInput(
+            inputId = "ts_geom_type",
+            label = "Plot Type",
+            choices = c(
+              "Line" = "line",
+              "Smooth" = "smooth",
+              "Regression" = "regression"
+            ),
+            selected = "line",
+            inline = TRUE
+          ),
+          checkboxInput(
+            inputId = "ts_show_points",
+            label = "Show Points",
+            value = TRUE
+          ),
+          splitLayout(
+            cellWidths = c("50%", "50%"),
+            numericInput(
+              inputId = "ts_linewidth",
+              label = "Line Width",
+              value = 0.8,
+              min = 0.1,
+              max = 5,
+              step = 0.1,
+              width = "100%"
+            ),
+            numericInput(
+              inputId = "ts_pointsize",
+              label = "Point Size",
+              value = 1.2,
+              min = 0.1,
+              max = 10,
+              step = 0.1,
+              width = "100%"
+            )
+          ),
+          selectInput(
+            inputId = "ts_colour_theme",
+            label = "Colour Theme",
+            choices = c(
+              "AECOM (Default)" = "aecom",
+              "Viridis" = "viridis",
+              "Plasma" = "plasma",
+              "Brewer Set1" = "Set1",
+              "Brewer Set2" = "Set2",
+              "Brewer Dark2" = "Dark2",
+              "Brewer Paired" = "Paired",
+              "Brewer Spectral" = "Spectral"
+            ),
+            selected = "aecom",
+            width = "100%"
+          ),
+          # ── Legend position ────────────────────────────────────────────
+          radioButtons(
+            inputId = "ts_legend_pos",
+            label = "Legend Position",
+            choices = c("Bottom" = "bottom", "Right" = "right"),
+            selected = "bottom",
+            inline = TRUE
           )
         ),
         accordion_panel(
@@ -305,19 +408,58 @@ ui <- page_navbar(
               value = "Red"
             )
           )
+        ),
+        accordion_panel(
+          "Download Plot",
+          tags$p(
+            "Image Dimensions",
+            style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
+          ),
+          splitLayout(
+            cellWidths = c("50%", "50%"),
+            numericInput(
+              inputId = "ts_width_cm",
+              label = "Width (cm)",
+              value = 30,
+              min = 5,
+              step = 0.5,
+              width = "100%"
+            ),
+            numericInput(
+              inputId = "ts_height_cm",
+              label = "Height (cm)",
+              value = 14.85,
+              min = 5,
+              step = 0.5,
+              width = "100%"
+            )
+          ),
+          numericInput(
+            inputId = "ts_dpi",
+            label = "Resolution (DPI)",
+            value = 300,
+            min = 72,
+            max = 600,
+            step = 50,
+            width = "100%"
+          ),
+          tags$div(
+            style = "margin-top:8px;",
+            downloadButton(
+              outputId = "download_ts_png",
+              label = "Download PNG",
+              icon = shiny::icon("image"),
+              class = "btn-sm w-100"
+            )
+          )
         )
       ),
 
       layout_columns(
-        col_widths = c(6, 6, 6, 6),
+        col_widths = c(12, 6, 6),
         card(
           card_header("Timeseries Plot"),
           plotOutput("timeseries_plot"),
-          full_screen = TRUE
-        ),
-        card(
-          card_header("Plotly Timeseries"),
-          plotlyOutput("timeseries_two"),
           full_screen = TRUE
         ),
         card(
@@ -586,35 +728,104 @@ server <- function(input, output) {
       filter(location_code %in% input$plotting_locations)
   })
 
-  output$timeseries_plot <- renderPlot({
+  # Shared reactive — builds the ggplot2 timeseries object used by both
+  # the on-screen render and the PNG download handler.
+  # Built directly with ggplot2 so linewidth/point size are fully controllable.
+  ts_plot_obj <- reactive({
     req(plotting_data())
 
     establish_plotting_variables(data = file_data())
 
     date_range_plot <- input$plotting_date
 
-    df <-
-      plotting_data() %>%
+    df <- plotting_data() %>%
       filter(
         chem_name %in% input$plotting_analytes,
         date >= date_range_plot[1] & date <= date_range_plot[2]
       )
 
     y_unit <- unique(df$output_unit)
+    y_limits <- c(
+      input$min_conc,
+      if (is.na(input$max_conc)) NA_real_ else input$max_conc
+    )
+    lw <- input$ts_linewidth
+    x_hjust <- if (input$ts_x_angle > 0) 1 else 0.5
 
-    plot <- df %>%
-      timeseries_plot(
-        date_size = input$ts_date_size,
-        x_angle = input$ts_x_angle,
-        y_unit = y_unit,
-        dates_range = as.POSIXct(date_range_plot),
-        date_break = input$date_breaks_radio,
-        date_label = input$date_label_radio,
-        ymin = input$min_conc,
-        ymax = input$max_conc,
-        y_title_size = 12
+    # ── Geom layers (conditional on plot type and points toggle) ─────────────
+    geom_layers <- list()
+    if ("line" %in% input$ts_geom_type) {
+      geom_layers <- c(geom_layers, list(ggplot2::geom_path(linewidth = lw)))
+    }
+    if ("smooth" %in% input$ts_geom_type) {
+      geom_layers <- c(
+        geom_layers,
+        list(ggplot2::geom_smooth(se = FALSE, linewidth = lw))
+      )
+    }
+    if ("regression" %in% input$ts_geom_type) {
+      geom_layers <- c(
+        geom_layers,
+        list(ggplot2::geom_smooth(method = "lm", se = FALSE, linewidth = lw))
+      )
+    }
+    if (input$ts_show_points) {
+      geom_layers <- c(
+        geom_layers,
+        list(ggplot2::geom_point(size = input$ts_pointsize, alpha = 0.5))
+      )
+    }
+
+    # ── Base plot ────────────────────────────────────────────────────────────
+    plot <- ggplot2::ggplot(
+      df,
+      ggplot2::aes(x = date, y = concentration, colour = location_code)
+    ) +
+      geom_layers +
+      ggplot2::theme_light() +
+      ggplot2::labs(
+        x = NULL,
+        y = glue("Concentration ({y_unit})"),
+        colour = NULL
+      ) +
+      ggplot2::scale_x_datetime(
+        date_breaks = paste(input$date_break_n, input$date_break_unit),
+        date_labels = input$date_label_radio,
+        limits = as.POSIXct(date_range_plot)
+      ) +
+      ggplot2::theme(
+        legend.title = ggplot2::element_blank(),
+        legend.position = input$ts_legend_pos,
+        legend.text = ggplot2::element_text(colour = "black"),
+        axis.text.x = ggplot2::element_text(
+          angle = input$ts_x_angle,
+          size = input$ts_date_size,
+          hjust = x_hjust,
+          colour = "black"
+        ),
+        axis.text.y = ggplot2::element_text(
+          size = input$ts_y_label_size,
+          colour = "black"
+        ),
+        axis.title.y = ggplot2::element_text(
+          size = input$ts_y_title_size,
+          colour = "black"
+        ),
+        strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
+        strip.text = ggplot2::element_text(colour = "black")
       )
 
+    # ── Colour scale ─────────────────────────────────────────────────────────
+    plot <- plot +
+      switch(
+        input$ts_colour_theme,
+        "aecom" = ggplot2::scale_colour_manual(values = location_colours),
+        "viridis" = ggplot2::scale_colour_viridis_d(option = "viridis"),
+        "plasma" = ggplot2::scale_colour_viridis_d(option = "plasma"),
+        ggplot2::scale_colour_brewer(palette = input$ts_colour_theme)
+      )
+
+    # ── Y-axis / criteria ────────────────────────────────────────────────────
     if (input$criteria_check) {
       plot <- plot +
         scale_y_limitval(
@@ -622,65 +833,34 @@ server <- function(input, output) {
           marker_labels = input$criteria_label,
           marker_colours = c(input$criteria_colour)
         )
-    }
-
-    # Not allowing to adust max y scale as the limitval function applies its own scale_y_continuous
-
-    plot # Return the plot object
-  })
-
-  output$timeseries_two <- renderPlotly({
-    req(plotting_data())
-
-    date_range <- input$plotting_date
-
-    df <-
-      plotting_data() %>%
-      filter(
-        chem_name %in% input$plotting_analytes,
-        date >= date_range[1] & date <= date_range[2]
-      )
-
-    y_unit <- unique(df$output_unit)
-
-    ts2_plot <- df %>%
-      plot_ly(
-        x = ~date,
-        y = ~concentration,
-        color = ~location_code,
-        colors = location_colours,
-        type = "scatter",
-        mode = "lines"
-      ) %>%
-      layout(
-        xaxis = list(title = ""),
-        yaxis = list(title = glue('Concentration ({y_unit})')),
-        legend = list(title = list(text = ""))
-      ) %>% # use center of legend as anchor
-      add_markers(showlegend = F, size = I(8)) %>%
-      layout(
-        legend = list(
-          orientation = "h", # show entries horizontally
-          xanchor = "center", # use center of legend as anchor
-          x = 0.5
-        )
-      )
-
-    if (input$criteria_check) {
-      ts2_plot %>%
-        add_segments(
-          x = min(df$date),
-          xend = max(df$date),
-          y = input$criteria_value,
-          yend = input$criteria_value,
-          color = I(input$criteria_colour),
-          linetype = I("dash"),
-          name = input$criteria_label
-        )
     } else {
-      ts2_plot
+      plot <- plot + ggplot2::scale_y_continuous(limits = y_limits)
     }
+
+    plot
   })
+
+  output$timeseries_plot <- renderPlot({
+    ts_plot_obj()
+  })
+
+  # Download PNG — default size: half portrait A4 (21 × 14.85 cm)
+  output$download_ts_png <- downloadHandler(
+    filename = function() {
+      paste0("timeseries_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      ggplot2::ggsave(
+        filename = file,
+        plot = ts_plot_obj(),
+        width = input$ts_width_cm,
+        height = input$ts_height_cm,
+        units = "cm",
+        dpi = input$ts_dpi,
+        device = "png"
+      )
+    }
+  )
 
   output$conc_histogram <- renderPlotly({
     req(plotting_data())
