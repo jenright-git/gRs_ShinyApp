@@ -384,21 +384,26 @@ ui <- page_navbar(
         ),
         accordion_panel(
           "Criteria",
+          # ── Criteria 1 ───────────────────────────────────────────────────────
+          tags$p(
+            "Criteria 1",
+            style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
+          ),
           checkboxInput(
             "criteria_check",
-            label = "Apply Criteria",
+            label = "Apply Criteria 1",
             value = FALSE
           ),
           textInput(
             "criteria_label",
-            label = "Criteria Label",
-            placeholder = "Enter Criteria Label",
+            label = "Label",
+            placeholder = "Enter label",
             value = NULL
           ),
           splitLayout(
             numericInput(
               "criteria_value",
-              label = "Criteria Value",
+              label = "Value",
               value = 1,
               min = 0
             ),
@@ -406,6 +411,36 @@ ui <- page_navbar(
               inputId = "criteria_colour",
               label = "Colour",
               value = "Red"
+            )
+          ),
+          # ── Criteria 2 ───────────────────────────────────────────────────────
+          tags$hr(style = "margin:8px 0;"),
+          tags$p(
+            "Criteria 2",
+            style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
+          ),
+          checkboxInput(
+            "criteria2_check",
+            label = "Apply Criteria 2",
+            value = FALSE
+          ),
+          textInput(
+            "criteria2_label",
+            label = "Label",
+            placeholder = "Enter label",
+            value = NULL
+          ),
+          splitLayout(
+            numericInput(
+              "criteria2_value",
+              label = "Value",
+              value = 1,
+              min = 0
+            ),
+            textInput(
+              inputId = "criteria2_colour",
+              label = "Colour",
+              value = "Blue"
             )
           )
         ),
@@ -476,16 +511,98 @@ ui <- page_navbar(
                 label = "Facet by Location",
                 value = FALSE
               ),
+              tags$hr(style = "margin:8px 0;"),
+              tags$p(
+                "Download",
+                style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
+              ),
+              splitLayout(
+                cellWidths = c("50%", "50%"),
+                numericInput(
+                  "hist_width_cm",
+                  "W (cm)",
+                  value = 30,
+                  min = 5,
+                  step = 0.5,
+                  width = "100%"
+                ),
+                numericInput(
+                  "hist_height_cm",
+                  "H (cm)",
+                  value = 14.85,
+                  min = 5,
+                  step = 0.5,
+                  width = "100%"
+                )
+              ),
+              numericInput(
+                "hist_dpi",
+                "DPI",
+                value = 300,
+                min = 72,
+                max = 600,
+                step = 50,
+                width = "100%"
+              ),
+              downloadButton(
+                "download_hist_png",
+                "Download PNG",
+                icon = shiny::icon("image"),
+                class = "btn-sm w-100"
+              ),
               open = FALSE
             ),
-            plotlyOutput("conc_histogram")
+            plotOutput("conc_histogram")
           ),
           full_screen = TRUE
         ),
 
         card(
           card_header("Boxplot"),
-          plotlyOutput("conc_boxplot"),
+          layout_sidebar(
+            sidebar = sidebar(
+              tags$p(
+                "Download",
+                style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
+              ),
+              splitLayout(
+                cellWidths = c("50%", "50%"),
+                numericInput(
+                  "boxplot_width_cm",
+                  "W (cm)",
+                  value = 30,
+                  min = 5,
+                  step = 0.5,
+                  width = "100%"
+                ),
+                numericInput(
+                  "boxplot_height_cm",
+                  "H (cm)",
+                  value = 14.85,
+                  min = 5,
+                  step = 0.5,
+                  width = "100%"
+                )
+              ),
+              numericInput(
+                "boxplot_dpi",
+                "DPI",
+                value = 300,
+                min = 72,
+                max = 600,
+                step = 50,
+                width = "100%"
+              ),
+              downloadButton(
+                "download_boxplot_png",
+                "Download PNG",
+                icon = shiny::icon("image"),
+                class = "btn-sm w-100"
+              ),
+              open = FALSE
+            ),
+            plotOutput("conc_boxplot")
+          ),
           full_screen = TRUE
         )
       )
@@ -825,16 +942,57 @@ server <- function(input, output) {
         ggplot2::scale_colour_brewer(palette = input$ts_colour_theme)
       )
 
-    # ── Y-axis / criteria ────────────────────────────────────────────────────
+    # ── Y-axis limits ────────────────────────────────────────────────────────
+    # Always apply user-specified min/max; NA upper limit lets ggplot2 expand.
+    plot <- plot + ggplot2::scale_y_continuous(limits = y_limits)
+
+    # ── Criteria lines ───────────────────────────────────────────────────────
+    # Resolve display labels (fall back if the user left the field blank)
+    crit1_label <- if (nchar(trimws(input$criteria_label))  > 0) input$criteria_label  else "Criteria 1"
+    crit2_label <- if (nchar(trimws(input$criteria2_label)) > 0) input$criteria2_label else "Criteria 2"
+
+    # Map criteria via the LINETYPE aesthetic — a completely separate scale
+    # from the location COLOUR scale — so existing location legend entries are
+    # never touched.  guide_legend(override.aes) forces each key glyph to
+    # display the correct criteria colour even though colour is a fixed param.
+    lt_values  <- c()
+    lt_colours <- c()
+
     if (input$criteria_check) {
       plot <- plot +
-        scale_y_limitval(
-          marker_values = c(input$criteria_value),
-          marker_labels = input$criteria_label,
-          marker_colours = c(input$criteria_colour)
+        ggplot2::geom_hline(
+          data = data.frame(yint = input$criteria_value, lbl = crit1_label),
+          ggplot2::aes(yintercept = yint, linetype = lbl),
+          colour      = input$criteria_colour,
+          linewidth   = 0.7,
+          show.legend = TRUE
         )
-    } else {
-      plot <- plot + ggplot2::scale_y_continuous(limits = y_limits)
+      lt_values[crit1_label] <- "dashed"
+      lt_colours             <- c(lt_colours, input$criteria_colour)
+    }
+
+    if (input$criteria2_check) {
+      plot <- plot +
+        ggplot2::geom_hline(
+          data = data.frame(yint = input$criteria2_value, lbl = crit2_label),
+          ggplot2::aes(yintercept = yint, linetype = lbl),
+          colour      = input$criteria2_colour,
+          linewidth   = 0.7,
+          show.legend = TRUE
+        )
+      lt_values[crit2_label] <- "dashed"
+      lt_colours             <- c(lt_colours, input$criteria2_colour)
+    }
+
+    if (input$criteria_check || input$criteria2_check) {
+      plot <- plot +
+        ggplot2::scale_linetype_manual(
+          values = lt_values,
+          name   = NULL,
+          guide  = ggplot2::guide_legend(
+            override.aes = list(colour = lt_colours, linewidth = 0.7)
+          )
+        )
     }
 
     plot
@@ -862,7 +1020,7 @@ server <- function(input, output) {
     }
   )
 
-  output$conc_histogram <- renderPlotly({
+  hist_plot_obj <- reactive({
     req(plotting_data())
 
     date_range <- input$plotting_date
@@ -873,61 +1031,90 @@ server <- function(input, output) {
         date >= date_range[1] & date <= date_range[2]
       )
 
-    #binwidth <- ifelse(input$bin_selector==0, max(hist_data$concentration) / 30, input$bin_selector)
+    y_unit   <- unique(hist_data$output_unit)
+    x_hjust  <- if (input$ts_x_angle > 0) 1 else 0.5
 
-    #breaks <- pretty(range(hist_data$concentration),
-    # n = nclass.Sturges(hist_data$concentration),
-    # min.n = 1)
-    y_unit <- unique(hist_data$output_unit)
+    black_text <- ggplot2::theme(
+      axis.text.x  = ggplot2::element_text(
+        colour = "black",
+        size   = input$ts_date_size,
+        angle  = input$ts_x_angle,
+        hjust  = x_hjust
+      ),
+      axis.text.y  = ggplot2::element_text(
+        colour = "black",
+        size   = input$ts_y_label_size
+      ),
+      axis.title.x = ggplot2::element_text(colour = "black"),
+      axis.title.y = ggplot2::element_text(
+        colour = "black",
+        size   = input$ts_y_title_size
+      ),
+      strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
+      strip.text       = ggplot2::element_text(colour = "black")
+    )
 
     if (input$bin_selector != 0) {
-      hist_plot <- hist_data %>%
-        ggplot(aes(concentration)) +
-        geom_histogram(
+      hist_plot <- ggplot2::ggplot(hist_data, ggplot2::aes(concentration)) +
+        ggplot2::geom_histogram(
           fill = "steelblue1",
           colour = "black",
           binwidth = input$bin_selector
         ) +
-        theme_light() +
-        labs(x = glue('Concentration ({y_unit})'), y = "Count")
+        ggplot2::theme_light() +
+        black_text +
+        ggplot2::labs(x = glue("Concentration ({y_unit})"), y = "Count")
     } else {
-      #sturges method for calculating breaks
       breaks <- pretty(
         range(hist_data$concentration),
         n = nclass.Sturges(hist_data$concentration),
         min.n = 1
       )
-
-      hist_plot <- hist_data %>%
-        ggplot(aes(concentration)) +
-        geom_histogram(fill = "steelblue1", colour = "black", breaks = breaks) +
-        theme_light() +
-        labs(x = glue('Concentration ({y_unit})'), y = "Count")
+      hist_plot <- ggplot2::ggplot(hist_data, ggplot2::aes(concentration)) +
+        ggplot2::geom_histogram(
+          fill = "steelblue1",
+          colour = "black",
+          breaks = breaks
+        ) +
+        ggplot2::theme_light() +
+        black_text +
+        ggplot2::labs(x = glue("Concentration ({y_unit})"), y = "Count")
     }
 
     if (input$facet_check) {
-      plotly::ggplotly(
-        hist_plot +
-          facet_wrap(~location_code) +
-          theme(
-            strip.background = element_rect(fill = NA, colour = "black"),
-            strip.text = element_text(colour = "black")
-          )
-      )
-    } else {
-      plotly::ggplotly(hist_plot)
+      hist_plot <- hist_plot + ggplot2::facet_wrap(~location_code)
     }
+
+    hist_plot
   })
 
-  output$conc_boxplot <- renderPlotly({
+  output$conc_histogram <- renderPlot({
+    hist_plot_obj()
+  })
+
+  output$download_hist_png <- downloadHandler(
+    filename = function() paste0("histogram_", Sys.Date(), ".png"),
+    content = function(file) {
+      ggplot2::ggsave(
+        filename = file,
+        plot = hist_plot_obj(),
+        width = input$hist_width_cm,
+        height = input$hist_height_cm,
+        units = "cm",
+        dpi = input$hist_dpi,
+        device = "png"
+      )
+    }
+  )
+
+  boxplot_obj <- reactive({
     req(plotting_data())
 
     establish_plotting_variables(data = file_data())
 
     date_range <- input$plotting_date
 
-    boxplot_data <-
-      plotting_data() %>%
+    boxplot_data <- plotting_data() %>%
       filter(
         chem_name %in% input$plotting_analytes,
         date >= date_range[1] & date <= date_range[2]
@@ -941,73 +1128,133 @@ server <- function(input, output) {
         )
       )
 
-    y_unit <- unique(boxplot_data$output_unit)
-
-    # bplot <- boxplot_data %>%
-    #   ggplot(aes(location_code, concentration, fill=location_code))+
-    #   geom_boxplot(alpha=0.4, outlier.shape = NA, show.legend = FALSE)+
-    #   geom_jitter(shape=21, alpha=0.4, show.legend = FALSE)+
-    #   theme_light()+
-    #   scale_fill_manual(breaks = waiver(), values = location_colours)+
-    #   labs(x=NULL, y=glue("Concentration ({y_unit})"))+
-    #   scale_y_continuous(limits = c(input$min_conc, input$max_conc))
-
-    remove_boxplot_outliers <- function(fig) {
-      stopifnot("plotly" %in% class(fig))
-      fig$x$data <- lapply(
-        fig$x$data,
-        \(i) {
-          if (i$type != "box") {
-            return(i)
-          }
-          i$marker = list(opacity = 0)
-          i$hoverinfo = "none"
-          i
-        }
-      )
-      fig
-    }
+    y_unit  <- unique(boxplot_data$output_unit)
+    x_hjust <- if (input$ts_x_angle > 0) 1 else 0.5
 
     set.seed(1994)
-    bplot <- ggplotly(
-      boxplot_data %>%
-        ggplot(aes(location_code, concentration, fill = location_code)) +
-        geom_jitter(
-          shape = 21,
-          alpha = 0.6,
-          show.legend = FALSE,
-          size = 1.2,
-          height = 0
-        ) +
-        geom_boxplot(alpha = 0.4, outlier.shape = NA, show.legend = FALSE) +
-        theme_light() +
-        scale_fill_manual(breaks = waiver(), values = location_colours) +
-        labs(x = NULL, y = glue("Concentration ({y_unit})"))
-    ) %>%
-      plotly::hide_legend() %>%
-      remove_boxplot_outliers()
+    bplot <- ggplot2::ggplot(
+      boxplot_data,
+      ggplot2::aes(location_code, concentration, fill = location_code)
+    ) +
+      ggplot2::geom_jitter(
+        shape = 21,
+        alpha = 0.6,
+        show.legend = FALSE,
+        size = 1.2,
+        height = 0
+      ) +
+      ggplot2::geom_boxplot(
+        alpha = 0.4,
+        outlier.shape = NA,
+        show.legend = FALSE
+      ) +
+      ggplot2::theme_light() +
+      ggplot2::labs(x = NULL, y = glue("Concentration ({y_unit})")) +
+      ggplot2::theme(
+        axis.text.x  = ggplot2::element_text(
+          colour = "black",
+          size   = input$ts_date_size,
+          angle  = input$ts_x_angle,
+          hjust  = x_hjust
+        ),
+        axis.text.y  = ggplot2::element_text(
+          colour = "black",
+          size   = input$ts_y_label_size
+        ),
+        axis.title.y = ggplot2::element_text(
+          colour = "black",
+          size   = input$ts_y_title_size
+        ),
+        strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
+        strip.text       = ggplot2::element_text(colour = "black"),
+        legend.position  = input$ts_legend_pos,
+        legend.text      = ggplot2::element_text(colour = "black"),
+        legend.title     = ggplot2::element_blank()
+      )
 
-    if (input$criteria_check) {
-      bplot
-      # %>%
-      #   plotly::hide_legend() %>%
-      #   add_segments(x=min(df$date),
-      #                        xend = max(df$date),
-      #                        y=input$criteria_value,
-      #                        yend = input$criteria_value,
-      #                        color=I(input$criteria_colour),
-      #                        linetype=I("dash"), name=input$criteria_label) %>%
-      #   remove_boxplot_outliers()
-      #
+    # Apply the same colour theme as the timeseries (fill scale for boxplot)
+    bplot <- bplot +
+      switch(
+        input$ts_colour_theme,
+        "aecom" = ggplot2::scale_fill_manual(values = location_colours, guide = "none"),
+        "viridis" = ggplot2::scale_fill_viridis_d(option = "viridis", guide = "none"),
+        "plasma" = ggplot2::scale_fill_viridis_d(option = "plasma", guide = "none"),
+        ggplot2::scale_fill_brewer(palette = input$ts_colour_theme, guide = "none")
+      )
 
-      # scale_y_limitval(marker_values = c(input$criteria_value),
-      #                  marker_labels = input$criteria_label,
-      #                  marker_colours = c(input$criteria_colour))
-      #
+    # ── Criteria lines with legend entries ───────────────────────────────────
+    # Resolve display labels (fall back if the user left the field blank)
+    crit1_label <- if (nchar(trimws(input$criteria_label)) > 0) {
+      input$criteria_label
     } else {
-      bplot
+      "Criteria 1"
     }
+    crit2_label <- if (nchar(trimws(input$criteria2_label)) > 0) {
+      input$criteria2_label
+    } else {
+      "Criteria 2"
+    }
+
+    # Supply a one-row data.frame per criteria line so that yintercept is a
+    # proper aes() mapping. This is the most reliable way to get ggplot2 to
+    # generate a legend key whose glyph reflects the dashed linetype and colour.
+    if (input$criteria_check) {
+      bplot <- bplot +
+        ggplot2::geom_hline(
+          data = data.frame(yint = input$criteria_value, lbl = crit1_label),
+          ggplot2::aes(yintercept = yint, colour = lbl),
+          linetype = "dashed",
+          linewidth = 0.7,
+          show.legend = TRUE
+        )
+    }
+    if (input$criteria2_check) {
+      bplot <- bplot +
+        ggplot2::geom_hline(
+          data = data.frame(yint = input$criteria2_value, lbl = crit2_label),
+          ggplot2::aes(yintercept = yint, colour = lbl),
+          linetype = "dashed",
+          linewidth = 0.7,
+          show.legend = TRUE
+        )
+    }
+
+    # Add a colour scale only for the active criteria lines.
+    # scale_fill_* (used by boxes/jitter) and scale_colour_* are independent
+    # aesthetics, so there is no conflict between the two scales.
+    if (input$criteria_check || input$criteria2_check) {
+      crit_colour_scale <- c()
+      if (input$criteria_check) {
+        crit_colour_scale[crit1_label] <- input$criteria_colour
+      }
+      if (input$criteria2_check) {
+        crit_colour_scale[crit2_label] <- input$criteria2_colour
+      }
+      bplot <- bplot +
+        ggplot2::scale_colour_manual(values = crit_colour_scale, name = NULL)
+    }
+
+    bplot
   })
+
+  output$conc_boxplot <- renderPlot({
+    boxplot_obj()
+  })
+
+  output$download_boxplot_png <- downloadHandler(
+    filename = function() paste0("boxplot_", Sys.Date(), ".png"),
+    content = function(file) {
+      ggplot2::ggsave(
+        filename = file,
+        plot = boxplot_obj(),
+        width = input$boxplot_width_cm,
+        height = input$boxplot_height_cm,
+        units = "cm",
+        dpi = input$boxplot_dpi,
+        device = "png"
+      )
+    }
+  )
 
   output$stats_table <- DT::renderDataTable({
     req(file_data())

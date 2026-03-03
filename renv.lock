@@ -68,6 +68,17 @@
       ],
       "Hash": "fb578c2b5d796882c60e9f770352f7c4"
     },
+    "PKI": {
+      "Package": "PKI",
+      "Version": "0.1-15",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "base64enc"
+      ],
+      "Hash": "ec0620ffbe13af5d017a92077085965e"
+    },
     "Polychrome": {
       "Package": "Polychrome",
       "Version": "1.5.4",
@@ -143,6 +154,17 @@
         "utils"
       ],
       "Hash": "4ac8e423216b8b70cb9653d1b3f71eb9"
+    },
+    "RcppTOML": {
+      "Package": "RcppTOML",
+      "Version": "0.2.3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "Rcpp"
+      ],
+      "Hash": "23eeca7d3c7d63fc7449108c0a66178c"
     },
     "S7": {
       "Package": "S7",
@@ -1003,6 +1025,17 @@
       ],
       "Hash": "64f308bf1fbf5f856cdf4b4c7c0ce51b"
     },
+    "jose": {
+      "Package": "jose",
+      "Version": "1.2.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "jsonlite",
+        "openssl"
+      ],
+      "Hash": "cf5ae308441d505b8c7e4b08e0e510aa"
+    },
     "jpeg": {
       "Package": "jpeg",
       "Version": "0.1-11",
@@ -1342,6 +1375,18 @@
       ],
       "Hash": "627d6993db1043703c0b084fa432f21f"
     },
+    "packrat": {
+      "Package": "packrat",
+      "Version": "0.9.3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "tools",
+        "utils"
+      ],
+      "Hash": "d3289899c84c65def1a783ea0a9ea0eb"
+    },
     "pillar": {
       "Package": "pillar",
       "Version": "1.11.1",
@@ -1634,6 +1679,31 @@
       ],
       "Hash": "efe19db0fde0fff13cea7eec6f695021"
     },
+    "rsconnect": {
+      "Package": "rsconnect",
+      "Version": "1.7.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "PKI",
+        "R",
+        "cli",
+        "curl",
+        "digest",
+        "jsonlite",
+        "lifecycle",
+        "openssl",
+        "packrat",
+        "renv",
+        "rlang",
+        "rstudioapi",
+        "snowflakeauth",
+        "tools",
+        "utils",
+        "yaml"
+      ],
+      "Hash": "bb44049707584498dc7fdae0963aa8a6"
+    },
     "rstudioapi": {
       "Package": "rstudioapi",
       "Version": "0.18.0",
@@ -1764,6 +1834,22 @@
         "stringr"
       ],
       "Hash": "58767e44739b76965332e8a4fe3f91f1"
+    },
+    "snowflakeauth": {
+      "Package": "snowflakeauth",
+      "Version": "0.2.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "RcppTOML",
+        "cli",
+        "curl",
+        "jose",
+        "jsonlite",
+        "openssl",
+        "rlang"
+      ],
+      "Hash": "84561ae3fe96a5f8c7ee81db5492304d"
     },
     "sourcetools": {
       "Package": "sourcetools",
