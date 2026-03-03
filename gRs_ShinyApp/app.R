@@ -532,7 +532,7 @@ server <- function(input, output) {
   })
 
   output$trend_select <- renderUI({
-    require(mk_results)
+    require(mk_results())
 
     radioButtons(
       inputId = "trend_select",
