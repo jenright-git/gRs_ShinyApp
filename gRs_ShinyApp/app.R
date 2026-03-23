@@ -215,7 +215,7 @@ ui <- page_navbar(
   ),
 
   nav_panel(
-    "Timeseries",
+    "Charts",
     page_sidebar(
       sidebar = accordion(
         accordion_panel(
@@ -519,7 +519,7 @@ ui <- page_navbar(
       layout_columns(
         col_widths = c(12, 6, 6),
         card(
-          card_header("Timeseries Plot"),
+          card_header("Timeseries"),
           plotOutput("timeseries_plot"),
           full_screen = TRUE
         ),
@@ -1308,6 +1308,12 @@ server <- function(input, output) {
       bplot <- bplot +
         ggplot2::scale_colour_manual(values = crit_colour_scale, name = NULL)
     }
+
+    bplot <- bplot +
+      ggplot2::scale_y_continuous(limits = c(
+        input$min_conc,
+        if (is.na(input$max_conc)) NA_real_ else input$max_conc
+      ))
 
     bplot
   })
