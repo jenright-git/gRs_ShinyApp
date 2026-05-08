@@ -68,17 +68,38 @@ ui <- page_navbar(
             inputId = "file_input",
             label = "Upload Esdat File",
             accept = ".xlsx"
-          ),
-          shiny::checkboxInput(
-            inputId = "half_lor",
-            label = "Use Half LOR?",
-            value = FALSE
           )
         ),
 
         accordion_panel(
           "Mann-Kendall Controls",
           input_task_button(id = "mk_button", label = "Run Trend Analysis"),
+          numericInput(
+            inputId = "lor_multiplier",
+            label = "LOR Multiplier",
+            value = 1,
+            min = 0,
+            max = 1,
+            step = 0.1,
+            width = "50%"
+          ),
+          checkboxInput(
+            inputId = "use_nd_threshold",
+            label = "Apply ND Threshold?",
+            value = FALSE
+          ),
+          conditionalPanel(
+            condition = "input.use_nd_threshold == true",
+            numericInput(
+              inputId = "nd_threshold",
+              label = "Max ND Proportion (0-1)",
+              value = 0.5,
+              min = 0,
+              max = 1,
+              step = 0.05,
+              width = "50%"
+            )
+          ),
           uiOutput(outputId = "analyte_selector"),
           uiOutput(outputId = "location_selector")
         ),
@@ -209,6 +230,13 @@ ui <- page_navbar(
             plotlyOutput("mk_increasing"),
             full_screen = TRUE
           ))
+        ),
+        nav_panel(
+          "ND Excluded",
+          card(
+            uiOutput("nd_excluded_ui"),
+            full_screen = TRUE
+          )
         )
       )
     )
@@ -224,7 +252,16 @@ ui <- page_navbar(
           uiOutput(outputId = "plotting_analytes"),
           input_task_button("update_plot_locations", "Update Locations"),
           uiOutput(outputId = "plotting_locations"),
-          uiOutput(outputId = "plotting_date")
+          uiOutput(outputId = "plotting_date"),
+          numericInput(
+            inputId = "chart_lor_multiplier",
+            label = "LOR Multiplier",
+            value = 1,
+            min = 0,
+            max = 1,
+            step = 0.1,
+            width = "50%"
+          )
         ),
         accordion_panel(
           "Plotting Controls",
@@ -680,17 +717,16 @@ server <- function(input, output) {
 
   file_data <- reactive({
     file <- input$file_input
-
-    lor_check <- input$half_lor
-
-    if (!is.null(file) & lor_check) {
-      data_processor(file$datapath) %>% half_lor()
-    } else if (!is.null(file) & lor_check == FALSE) {
-      data_processor(file$datapath)
-    }
+    if (!is.null(file)) data_processor(file$datapath)
   })
 
   mk_results <- eventReactive(input$mk_button, {
+    nd_thresh <- if (!isTRUE(input$use_nd_threshold)) {
+      NULL
+    } else {
+      input$nd_threshold
+    }
+
     file_data() %>%
       filter(
         chem_name %in% input$analyte_input,
@@ -700,7 +736,70 @@ server <- function(input, output) {
         location_code = factor(location_code, levels = input$location_input),
         chem_name = factor(chem_name, levels = input$analyte_input)
       ) %>%
-      mann_kendall_test()
+      mann_kendall_test(
+        lor_multiplier = input$lor_multiplier,
+        nd_threshold = nd_thresh
+      )
+  })
+
+  nd_excluded <- eventReactive(input$mk_button, {
+    req(file_data(), isTRUE(input$use_nd_threshold))
+    threshold <- req(input$nd_threshold)
+
+    file_data() %>%
+      filter(
+        chem_name %in% input$analyte_input,
+        location_code %in% input$location_input
+      ) %>%
+      drop_na(concentration) %>%
+      group_by(location_code, chem_name) %>%
+      summarise(
+        n_samples      = n(),
+        n_non_detect   = sum(!is.na(prefix) & prefix == "<"),
+        pct_non_detect = round(mean(!is.na(prefix) & prefix == "<") * 100, 1),
+        .groups = "drop"
+      ) %>%
+      filter(n_samples > 3, pct_non_detect / 100 > threshold) %>%
+      arrange(desc(pct_non_detect)) %>%
+      rename(
+        "Location"      = location_code,
+        "Analyte"       = chem_name,
+        "N Samples"     = n_samples,
+        "N Non-Detect"  = n_non_detect,
+        "% Non-Detect"  = pct_non_detect
+      )
+  })
+
+  output$nd_excluded_ui <- renderUI({
+    if (!isTRUE(input$use_nd_threshold)) {
+      tags$div(
+        style = "padding:24px; color:#666; font-style:italic;",
+        "ND threshold filter is not active. Enable 'Apply ND Threshold?' to see excluded combinations."
+      )
+    } else if (nrow(nd_excluded()) == 0) {
+      tags$div(
+        style = "padding:24px; color:#008745; font-weight:600;",
+        "No location–analyte combinations were excluded at the current threshold."
+      )
+    } else {
+      DT::dataTableOutput("nd_excluded_table")
+    }
+  })
+
+  output$nd_excluded_table <- DT::renderDataTable({
+    req(nd_excluded(), nrow(nd_excluded()) > 0)
+    DT::datatable(
+      nd_excluded(),
+      rownames = FALSE,
+      options = list(pageLength = 25, dom = "ftp")
+    ) %>%
+      DT::formatStyle(
+        "% Non-Detect",
+        background = DT::styleColorBar(c(0, 100), "#ffcccc"),
+        backgroundSize = "100% 80%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      )
   })
 
   output$mann_kendall_heatmap <- renderPlotly({
@@ -868,7 +967,14 @@ server <- function(input, output) {
 
   plotting_data <- eventReactive(input$update_plot_locations, {
     file_data() %>%
-      filter(location_code %in% input$plotting_locations)
+      filter(location_code %in% input$plotting_locations) %>%
+      mutate(
+        concentration = ifelse(
+          !is.na(prefix) & prefix == "<",
+          concentration * input$chart_lor_multiplier,
+          concentration
+        )
+      )
   })
 
   # Shared reactive — builds the ggplot2 timeseries object used by both
@@ -1310,10 +1416,12 @@ server <- function(input, output) {
     }
 
     bplot <- bplot +
-      ggplot2::scale_y_continuous(limits = c(
-        input$min_conc,
-        if (is.na(input$max_conc)) NA_real_ else input$max_conc
-      ))
+      ggplot2::scale_y_continuous(
+        limits = c(
+          input$min_conc,
+          if (is.na(input$max_conc)) NA_real_ else input$max_conc
+        )
+      )
 
     bplot
   })
@@ -1375,6 +1483,13 @@ server <- function(input, output) {
       filter(
         location_code %in% input$facet_locations,
         chem_name %in% input$facet_analytes
+      ) %>%
+      mutate(
+        concentration = ifelse(
+          !is.na(prefix) & prefix == "<",
+          concentration * input$chart_lor_multiplier,
+          concentration
+        )
       )
   })
 
