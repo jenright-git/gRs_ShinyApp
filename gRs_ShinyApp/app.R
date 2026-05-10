@@ -754,19 +754,19 @@ server <- function(input, output) {
       drop_na(concentration) %>%
       group_by(location_code, chem_name) %>%
       summarise(
-        n_samples      = n(),
-        n_non_detect   = sum(!is.na(prefix) & prefix == "<"),
+        n_samples = n(),
+        n_non_detect = sum(!is.na(prefix) & prefix == "<"),
         pct_non_detect = round(mean(!is.na(prefix) & prefix == "<") * 100, 1),
         .groups = "drop"
       ) %>%
       filter(n_samples > 3, pct_non_detect / 100 > threshold) %>%
       arrange(desc(pct_non_detect)) %>%
       rename(
-        "Location"      = location_code,
-        "Analyte"       = chem_name,
-        "N Samples"     = n_samples,
-        "N Non-Detect"  = n_non_detect,
-        "% Non-Detect"  = pct_non_detect
+        "Location" = location_code,
+        "Analyte" = chem_name,
+        "N Samples" = n_samples,
+        "N Non-Detect" = n_non_detect,
+        "% Non-Detect" = pct_non_detect
       )
   })
 
@@ -782,7 +782,18 @@ server <- function(input, output) {
         "No location–analyte combinations were excluded at the current threshold."
       )
     } else {
-      DT::dataTableOutput("nd_excluded_table")
+      tagList(
+        div(
+          style = "margin-bottom: 8px;",
+          downloadButton(
+            "download_nd_excluded_excel",
+            label = "Download Excel",
+            icon = shiny::icon("file-excel"),
+            class = "btn-sm"
+          )
+        ),
+        DT::dataTableOutput("nd_excluded_table")
+      )
     }
   })
 
@@ -801,6 +812,31 @@ server <- function(input, output) {
         backgroundPosition = "center"
       )
   })
+
+  output$download_nd_excluded_excel <- downloadHandler(
+    filename = function() {
+      paste0("nd_excluded_", Sys.Date(), ".xlsx")
+    },
+    content = function(file) {
+      req(nd_excluded())
+      wb <- openxlsx::createWorkbook()
+      header_style <- openxlsx::createStyle(
+        fontName = "Arial",
+        fontSize = 11,
+        fontColour = "#FFFFFF",
+        fgFill = mk_header_col,
+        halign = "center",
+        valign = "center",
+        textDecoration = "bold",
+        border = "TopBottomLeftRight",
+        borderColour = mk_header_col
+      )
+      openxlsx::addWorksheet(wb, "ND Excluded")
+      openxlsx::writeData(wb, "ND Excluded", nd_excluded(), headerStyle = header_style)
+      openxlsx::setColWidths(wb, "ND Excluded", cols = seq_len(ncol(nd_excluded())), widths = "auto")
+      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+    }
+  )
 
   output$mann_kendall_heatmap <- renderPlotly({
     req(mk_results())
