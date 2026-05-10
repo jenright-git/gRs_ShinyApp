@@ -685,8 +685,8 @@
     },
     "bsicons": {
       "Package": "bsicons",
-      "Version": "0.1.2.9000",
-      "Source": "GitHub",
+      "Version": "0.1.2",
+      "Source": "Repository",
       "Title": "Easily Work with 'Bootstrap' Icons",
       "Authors@R": "c( person(\"Carson\", \"Sievert\", , \"carson@posit.co\", role = c(\"cre\", \"aut\"), comment = c(ORCID = \"0000-0002-4958-2844\")), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")), person(\"Mark\", \"Otto\", role = \"cph\", comment = \"Bootstrap icons maintainer\") )",
       "Description": "Easily use 'Bootstrap' icons inside 'Shiny' apps and 'R Markdown' documents. More generally, icons can be inserted in any 'htmltools' document through inline 'SVG'.",
@@ -711,16 +711,11 @@
       ],
       "Config/testthat/edition": "3",
       "Encoding": "UTF-8",
-      "Roxygen": "list(markdown = TRUE)",
       "RoxygenNote": "7.2.3",
-      "Author": "Carson Sievert [cre, aut] (ORCID: <https://orcid.org/0000-0002-4958-2844>), Posit Software, PBC [cph, fnd], Mark Otto [cph] (Bootstrap icons maintainer)",
+      "NeedsCompilation": "no",
+      "Author": "Carson Sievert [cre, aut] (<https://orcid.org/0000-0002-4958-2844>), Posit Software, PBC [cph, fnd], Mark Otto [cph] (Bootstrap icons maintainer)",
       "Maintainer": "Carson Sievert <carson@posit.co>",
-      "RemoteType": "github",
-      "RemoteHost": "api.github.com",
-      "RemoteUsername": "rstudio",
-      "RemoteRepo": "bsicons",
-      "RemoteRef": "main",
-      "RemoteSha": "b4cb308d90d6d29f5296339f38e13951fae94b60"
+      "Repository": "CRAN"
     },
     "bslib": {
       "Package": "bslib",
@@ -4311,8 +4306,8 @@
     },
     "rsconnect": {
       "Package": "rsconnect",
-      "Version": "1.8.0.9000",
-      "Source": "GitHub",
+      "Version": "1.8.0",
+      "Source": "Repository",
       "Type": "Package",
       "Title": "Deploy Docs, Apps, and APIs to 'Posit Connect', 'shinyapps.io', and 'RPubs'",
       "Authors@R": "c( person(\"Aron\", \"Atkins\", , \"aron@posit.co\", role = c(\"aut\", \"cre\")), person(\"Toph\", \"Allen\", role = \"aut\"), person(\"Hadley\", \"Wickham\", role = \"aut\"), person(\"Jonathan\", \"McPherson\", role = \"aut\"), person(\"JJ\", \"Allaire\", role = \"aut\"), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
@@ -4362,17 +4357,11 @@
       "Config/testthat/parallel": "true",
       "Config/Python/Note": "Python <= 3.10 requires tomllib package for pyproject.toml parsing",
       "Encoding": "UTF-8",
-      "Roxygen": "list(markdown = TRUE)",
       "RoxygenNote": "7.3.3",
-      "RemoteType": "github",
-      "RemoteHost": "api.github.com",
-      "RemoteRepo": "rsconnect",
-      "RemoteUsername": "rstudio",
-      "RemoteRef": "HEAD",
-      "RemoteSha": "df97887a1d0a2af1f5cc2e43dfabaaed563e00f4",
       "NeedsCompilation": "no",
       "Author": "Aron Atkins [aut, cre], Toph Allen [aut], Hadley Wickham [aut], Jonathan McPherson [aut], JJ Allaire [aut], Posit Software, PBC [cph, fnd]",
-      "Maintainer": "Aron Atkins <aron@posit.co>"
+      "Maintainer": "Aron Atkins <aron@posit.co>",
+      "Repository": "CRAN"
     },
     "rstudioapi": {
       "Package": "rstudioapi",
