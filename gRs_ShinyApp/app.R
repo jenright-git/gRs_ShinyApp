@@ -83,13 +83,14 @@ ui <- page_navbar(
             step = 0.1,
             width = "50%"
           ),
-          checkboxInput(
-            inputId = "use_nd_threshold",
-            label = "Apply ND Threshold?",
-            value = FALSE
+          radioButtons(
+            inputId = "filter_method",
+            label = "Exclusion Filter",
+            choices = c("None", "ND Threshold", "Min Detects"),
+            selected = "None"
           ),
           conditionalPanel(
-            condition = "input.use_nd_threshold == true",
+            condition = "input.filter_method == 'ND Threshold'",
             numericInput(
               inputId = "nd_threshold",
               label = "Max ND Proportion (0-1)",
@@ -97,6 +98,17 @@ ui <- page_navbar(
               min = 0,
               max = 1,
               step = 0.05,
+              width = "50%"
+            )
+          ),
+          conditionalPanel(
+            condition = "input.filter_method == 'Min Detects'",
+            numericInput(
+              inputId = "min_detects",
+              label = "Min No. of Detects Required",
+              value = 3,
+              min = 1,
+              step = 1,
               width = "50%"
             )
           ),
@@ -232,7 +244,7 @@ ui <- page_navbar(
           ))
         ),
         nav_panel(
-          "ND Excluded",
+          "Excluded Samples",
           card(
             uiOutput("nd_excluded_ui"),
             full_screen = TRUE
@@ -721,10 +733,15 @@ server <- function(input, output) {
   })
 
   mk_results <- eventReactive(input$mk_button, {
-    nd_thresh <- if (!isTRUE(input$use_nd_threshold)) {
-      NULL
-    } else {
+    nd_thresh <- if (input$filter_method == "ND Threshold") {
       input$nd_threshold
+    } else {
+      NULL
+    }
+    min_det <- if (input$filter_method == "Min Detects") {
+      as.integer(input$min_detects)
+    } else {
+      NULL
     }
 
     file_data() %>%
@@ -738,15 +755,15 @@ server <- function(input, output) {
       ) %>%
       mann_kendall_test(
         lor_multiplier = input$lor_multiplier,
-        nd_threshold = nd_thresh
+        nd_threshold = nd_thresh,
+        min_detects = min_det
       )
   })
 
   nd_excluded <- eventReactive(input$mk_button, {
-    req(file_data(), isTRUE(input$use_nd_threshold))
-    threshold <- req(input$nd_threshold)
+    req(file_data(), input$filter_method != "None")
 
-    file_data() %>%
+    base <- file_data() %>%
       filter(
         chem_name %in% input$analyte_input,
         location_code %in% input$location_input
@@ -756,25 +773,48 @@ server <- function(input, output) {
       summarise(
         n_samples = n(),
         n_non_detect = sum(!is.na(prefix) & prefix == "<"),
+        n_detects = sum(is.na(prefix) | prefix != "<"),
         pct_non_detect = round(mean(!is.na(prefix) & prefix == "<") * 100, 1),
         .groups = "drop"
       ) %>%
-      filter(n_samples > 3, pct_non_detect / 100 > threshold) %>%
-      arrange(desc(pct_non_detect)) %>%
-      rename(
-        "Location" = location_code,
-        "Analyte" = chem_name,
-        "N Samples" = n_samples,
-        "N Non-Detect" = n_non_detect,
-        "% Non-Detect" = pct_non_detect
-      )
+      filter(n_samples > 3)
+
+    if (input$filter_method == "ND Threshold") {
+      threshold <- input$nd_threshold
+      base %>%
+        filter(pct_non_detect / 100 > threshold) %>%
+        mutate(Filter = sprintf("ND Threshold (> %.0f%%)", threshold * 100)) %>%
+        arrange(desc(pct_non_detect)) %>%
+        rename(
+          "Location" = location_code,
+          "Analyte" = chem_name,
+          "N Samples" = n_samples,
+          "N Non-Detect" = n_non_detect,
+          "N Detects" = n_detects,
+          "% Non-Detect" = pct_non_detect
+        )
+    } else {
+      min_det <- as.integer(input$min_detects)
+      base %>%
+        filter(n_detects < min_det) %>%
+        mutate(Filter = sprintf("Min No. of Detects Required: %d", min_det)) %>%
+        arrange(n_detects) %>%
+        rename(
+          "Location" = location_code,
+          "Analyte" = chem_name,
+          "N Samples" = n_samples,
+          "N Non-Detect" = n_non_detect,
+          "N Detects" = n_detects,
+          "% Non-Detect" = pct_non_detect
+        )
+    }
   })
 
   output$nd_excluded_ui <- renderUI({
-    if (!isTRUE(input$use_nd_threshold)) {
+    if (input$filter_method == "None") {
       tags$div(
         style = "padding:24px; color:#666; font-style:italic;",
-        "ND threshold filter is not active. Enable 'Apply ND Threshold?' to see excluded combinations."
+        "No exclusion filter is active. Select 'ND Threshold' or 'Min Detects' to see excluded combinations."
       )
     } else if (nrow(nd_excluded()) == 0) {
       tags$div(
@@ -782,7 +822,29 @@ server <- function(input, output) {
         "No location–analyte combinations were excluded at the current threshold."
       )
     } else {
+      method_label <- unique(nd_excluded()$Filter)
       tagList(
+        tags$div(
+          style = paste(
+            "display:inline-block;",
+            "border:2px solid #008768;",
+            "border-radius:6px;",
+            "padding:5px 14px;",
+            "background-color:#f0faf6;",
+            "margin-bottom:8px;"
+          ),
+          tags$p(
+            style = paste(
+              "font-weight:bold;",
+              "font-size:11px;",
+              "color:#008768;",
+              "margin:0;",
+              "text-transform:uppercase;",
+              "letter-spacing:0.5px;"
+            ),
+            method_label
+          )
+        ),
         div(
           style = "margin-bottom: 8px;",
           downloadButton(
@@ -799,23 +861,39 @@ server <- function(input, output) {
 
   output$nd_excluded_table <- DT::renderDataTable({
     req(nd_excluded(), nrow(nd_excluded()) > 0)
-    DT::datatable(
-      nd_excluded(),
+    excl <- nd_excluded()
+    is_nd_mode <- grepl("ND Threshold", excl$Filter[1])
+
+    dt <- DT::datatable(
+      excl,
       rownames = FALSE,
       options = list(pageLength = 25, dom = "ftp")
-    ) %>%
-      DT::formatStyle(
-        "% Non-Detect",
-        background = DT::styleColorBar(c(0, 100), "#ffcccc"),
-        backgroundSize = "100% 80%",
-        backgroundRepeat = "no-repeat",
-        backgroundPosition = "center"
-      )
+    )
+
+    if (is_nd_mode) {
+      dt %>%
+        DT::formatStyle(
+          "% Non-Detect",
+          background = DT::styleColorBar(c(0, 100), "#ffcccc"),
+          backgroundSize = "100% 80%",
+          backgroundRepeat = "no-repeat",
+          backgroundPosition = "center"
+        )
+    } else {
+      dt %>%
+        DT::formatStyle(
+          "N Detects",
+          background = DT::styleColorBar(range(excl[["N Detects"]]), "#cce5ff"),
+          backgroundSize = "100% 80%",
+          backgroundRepeat = "no-repeat",
+          backgroundPosition = "center"
+        )
+    }
   })
 
   output$download_nd_excluded_excel <- downloadHandler(
     filename = function() {
-      paste0("nd_excluded_", Sys.Date(), ".xlsx")
+      paste0("excluded_samples_", Sys.Date(), ".xlsx")
     },
     content = function(file) {
       req(nd_excluded())
@@ -831,9 +909,19 @@ server <- function(input, output) {
         border = "TopBottomLeftRight",
         borderColour = mk_header_col
       )
-      openxlsx::addWorksheet(wb, "ND Excluded")
-      openxlsx::writeData(wb, "ND Excluded", nd_excluded(), headerStyle = header_style)
-      openxlsx::setColWidths(wb, "ND Excluded", cols = seq_len(ncol(nd_excluded())), widths = "auto")
+      openxlsx::addWorksheet(wb, "Excluded Samples")
+      openxlsx::writeData(
+        wb,
+        "Excluded Samples",
+        nd_excluded(),
+        headerStyle = header_style
+      )
+      openxlsx::setColWidths(
+        wb,
+        "Excluded Samples",
+        cols = seq_len(ncol(nd_excluded())),
+        widths = "auto"
+      )
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
     }
   )
