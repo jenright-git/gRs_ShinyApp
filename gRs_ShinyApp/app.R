@@ -6,11 +6,9 @@ library(gRs)
 library(tidyverse)
 library(glue)
 library(plotly)
-library(thematic)
 library(bsicons)
 library(openxlsx)
-
-thematic::thematic_on()
+library(colourpicker)
 
 options(shiny.maxRequestSize = 30 * 1024^2)
 
@@ -117,60 +115,55 @@ ui <- page_navbar(
         ),
 
         accordion_panel(
-          "Heatmap Controls",
-          splitLayout(
-            numericInput(
-              "mk_trend_label",
-              "Label Size",
-              value = 6,
-              min = 1,
-              width = '70%'
-            ),
-            numericInput(
-              "mk_label_width",
-              "Label Width",
-              value = 20,
-              min = 0,
-              width = '70%'
-            )
+          "Trend Colours",
+          tags$p(
+            "Click a swatch to open the colour picker, or type a hex code or colour name.",
+            style = "font-size:11px; color:#666; margin:0 0 8px 0;"
           ),
-          splitLayout(
-            numericInput(
-              "mk_x_text",
-              "X Label Size",
-              12,
-              min = 1,
-              width = '70%'
-            ),
-            numericInput(
-              "mk_y_text",
-              "Y Label Size",
-              12,
-              min = 1,
-              width = '70%'
-            )
+          colourpicker::colourInput(
+            "col_increasing",
+            "Increasing",
+            value = "#FF0000",
+            showColour = "both",
+            width = "100%"
           ),
-          textInput(
-            "mk_title",
-            label = "Title",
-            value = "Mann-Kendall Trend Analysis"
+          colourpicker::colourInput(
+            "col_prob_increasing",
+            "Probably Increasing",
+            value = "#ff6700",
+            showColour = "both",
+            width = "100%"
           ),
-          splitLayout(
-            numericInput(
-              "mk_title_size",
-              "Title Size",
-              value = 10,
-              width = '70%'
-            ),
-            numericInput(
-              "mk_legend_text",
-              "Legend Text Size",
-              value = 10,
-              min = 0,
-              width = '70%'
-            )
+          colourpicker::colourInput(
+            "col_stable",
+            "Stable",
+            value = "#D9D9D9",
+            showColour = "both",
+            width = "100%"
+          ),
+          colourpicker::colourInput(
+            "col_no_sig_trend",
+            "No Significant Trend",
+            value = "#BFBFBF",
+            showColour = "both",
+            width = "100%"
+          ),
+          colourpicker::colourInput(
+            "col_prob_decreasing",
+            "Probably Decreasing",
+            value = "#92D050",
+            showColour = "both",
+            width = "100%"
+          ),
+          colourpicker::colourInput(
+            "col_decreasing",
+            "Decreasing",
+            value = "#00B050",
+            showColour = "both",
+            width = "100%"
           )
         ),
+
         open = c("Data_Upload", "Mann-Kendall Controls")
       ),
       navset_card_tab(
@@ -213,13 +206,6 @@ ui <- page_navbar(
               )
             ),
             DT::dataTableOutput("mann_kendall_table"),
-            full_screen = TRUE
-          )
-        ),
-        nav_panel(
-          "Trend Heatmap",
-          card(
-            plotlyOutput("mann_kendall_heatmap"),
             full_screen = TRUE
           )
         ),
@@ -683,46 +669,21 @@ ui <- page_navbar(
       )
     )
   ),
-
-  nav_panel(
-    title = "Summary Stats",
-    card(
-      card_header("Stats"),
-      DT::dataTableOutput("stats_table"),
-      full_screen = TRUE
-    )
-  ),
-
-  nav_panel(
-    title = "Facet Plot",
-    page_sidebar(
-      sidebar = accordion(
-        accordion_panel(
-          "Filters",
-          open = TRUE,
-          input_task_button("update_facet_locations", "Update Plots"),
-          uiOutput(outputId = "facet_analytes"),
-          uiOutput(outputId = "facet_locations")
-        )
-      ),
-      card(
-        plotlyOutput("facet_plot")
-      )
-    )
-  )
 )
 
 
 # Define server logic required to make visualisations
 server <- function(input, output) {
-  mk_trend_colors <- c(
-    "Increasing" = "#FF0000",
-    "Probably Increasing" = "#ff6700",
-    "Stable" = "#D9D9D9",
-    "No Significant Trend" = "#BFBFBF",
-    "Probably Decreasing" = "#92D050",
-    "Decreasing" = "#00B050"
-  )
+  mk_trend_colors <- reactive({
+    c(
+      "Increasing" = input$col_increasing,
+      "Probably Increasing" = input$col_prob_increasing,
+      "Stable" = input$col_stable,
+      "No Significant Trend" = input$col_no_sig_trend,
+      "Probably Decreasing" = input$col_prob_decreasing,
+      "Decreasing" = input$col_decreasing
+    )
+  })
 
   # Shared header / border colour for DT and Excel export
   mk_header_col <- "#008768"
@@ -926,26 +887,6 @@ server <- function(input, output) {
     }
   )
 
-  output$mann_kendall_heatmap <- renderPlotly({
-    req(mk_results())
-
-    heatmap <- mk_results() %>%
-      mann_kendall_heatmap(
-        label_text_size = input$mk_trend_label,
-        width = input$mk_label_width,
-        plot_title = input$mk_title
-      ) +
-      theme(
-        axis.text.y = element_text(size = input$mk_y_text),
-        axis.text.x = element_text(size = input$mk_x_text),
-        legend.text = element_text(size = input$mk_legend_text),
-        title = element_text(size = input$mk_title_size, face = "bold")
-      ) +
-      labs(fill = "Trend")
-
-    plotly::ggplotly(heatmap)
-  })
-
   output$mann_kendall_table <- DT::renderDataTable({
     req(mk_results())
 
@@ -967,27 +908,124 @@ server <- function(input, output) {
           columns = analyte_cols,
           color = "black",
           backgroundColor = DT::styleEqual(
-            names(mk_trend_colors),
-            unname(mk_trend_colors),
+            names(mk_trend_colors()),
+            unname(mk_trend_colors()),
             default = NULL
           )
         )
     } else {
+      lor_mult <- input$lor_multiplier
+      adj_conc <- function(d) {
+        ifelse(
+          !is.na(d$prefix) & d$prefix == "<",
+          d$concentration * lor_mult,
+          d$concentration
+        )
+      }
+
       mk_results() %>%
+        mutate(
+          CF = (1 - p_value) * 100,
+          n_samples = purrr::map_int(data, nrow),
+          n_detects = purrr::map_int(
+            data,
+            ~ sum(is.na(.x$prefix) | .x$prefix != "<")
+          ),
+          n_nondetects = purrr::map_int(
+            data,
+            ~ sum(!is.na(.x$prefix) & .x$prefix == "<")
+          ),
+          percent_detect = purrr::map_dbl(
+            data,
+            ~ round(
+              sum(is.na(.x$prefix) | .x$prefix != "<") / nrow(.x) * 100,
+              1
+            )
+          ),
+          Minimum = purrr::map_dbl(data, ~ min(adj_conc(.x), na.rm = TRUE)),
+          Maximum = purrr::map_dbl(data, ~ max(adj_conc(.x), na.rm = TRUE)),
+          p10 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.10, na.rm = TRUE)
+          ),
+          p20 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.20, na.rm = TRUE)
+          ),
+          p25 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.25, na.rm = TRUE)
+          ),
+          p50 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.50, na.rm = TRUE)
+          ),
+          p75 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.75, na.rm = TRUE)
+          ),
+          p80 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.80, na.rm = TRUE)
+          ),
+          p90 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.90, na.rm = TRUE)
+          ),
+          p95 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.95, na.rm = TRUE)
+          ),
+          p99 = purrr::map_dbl(
+            data,
+            ~ quantile(adj_conc(.x), 0.99, na.rm = TRUE)
+          ),
+          output_unit = purrr::map_chr(data, ~ .x$output_unit[1])
+        ) %>%
         select(-data) %>%
+        mutate(across(
+          where(is.numeric),
+          ~ ifelse(is.nan(.x) | is.infinite(.x), NA_real_, .x)
+        )) %>%
+        select(
+          location_code,
+          chem_name,
+          p_value,
+          CF,
+          tau_statistic,
+          S_statistic,
+          sample_mean,
+          SD,
+          COV,
+          trend,
+          everything()
+        ) %>%
         arrange(location_code) %>%
         mutate_if(is.numeric, signif, 4) %>%
         DT::datatable(
           .,
           extensions = "Buttons",
-          filter = list(position = "top")
+          filter = list(position = "top"),
+          options = list(
+            columnDefs = list(list(
+              targets = "_all",
+              render = DT::JS(
+                "function(data, type, row, meta) {
+                if (type === 'display' && (data === null || data === '')) {
+                  return '<span style=\"color:#999;font-style:italic\">NC</span>';
+                }
+                return data;
+              }"
+              )
+            ))
+          )
         ) %>%
         DT::formatStyle(
           columns = "trend",
           color = "black",
           backgroundColor = DT::styleEqual(
-            names(mk_trend_colors),
-            unname(mk_trend_colors),
+            names(mk_trend_colors()),
+            unname(mk_trend_colors()),
             default = NULL
           )
         )
@@ -1569,76 +1607,6 @@ server <- function(input, output) {
     }
   )
 
-  output$stats_table <- DT::renderDataTable({
-    req(file_data())
-
-    file_data() %>%
-      group_by(Location = location_code, Analyte = chem_name) %>%
-      summarise(
-        n_samples = n(),
-        Minimum = min(concentration, na.rm = T),
-        Mean = mean(concentration, na.rm = T),
-        Maximum = max(concentration, na.rm = -T),
-        `5th Percentile` = quantile(concentration, 0.05, na.rm = T),
-        `10th Percentile` = quantile(concentration, 0.1, na.rm = T),
-        `25th Percentile` = quantile(concentration, 0.25, na.rm = T),
-        `50th Percentile` = quantile(concentration, 0.5, na.rm = T),
-        `75th Percentile` = quantile(concentration, 0.75, na.rm = T),
-        `80th Percentile` = quantile(concentration, 0.80, na.rm = T),
-        `85th Percentile` = quantile(concentration, 0.85, na.rm = T),
-        `90th Percentile` = quantile(concentration, 0.9, na.rm = T),
-        `95th Percentile` = quantile(concentration, 0.95, na.rm = T),
-      ) %>%
-      mutate_if(is.numeric, signif, 4) %>%
-      DT::datatable(
-        .,
-        extensions = "Buttons",
-        filter = list(position = "top"),
-        options = list(
-          dom = 'Blfrtip',
-          buttons = c("copy", "csv", "excel", "pdf", "print"),
-          lengthMenu = list(c(-1, 10, 25, 50), c("All", 10, 25, 50))
-        )
-      )
-  })
-
-  facet_data <- eventReactive(input$update_facet_locations, {
-    file_data() %>%
-      filter(
-        location_code %in% input$facet_locations,
-        chem_name %in% input$facet_analytes
-      ) %>%
-      mutate(
-        concentration = ifelse(
-          !is.na(prefix) & prefix == "<",
-          concentration * input$chart_lor_multiplier,
-          concentration
-        )
-      )
-  })
-
-  output$facet_analytes <- renderUI({
-    req(file_data())
-    selectInput(
-      "facet_analytes",
-      label = "Select Analytes",
-      choices = file_data() %>% distinct(chem_name),
-      selected = file_data()$chem_name %>% unique(), #couldn't be distinct() because not a vector
-      multiple = TRUE
-    )
-  })
-
-  output$facet_locations <- renderUI({
-    req(file_data())
-    selectInput(
-      "facet_locations",
-      label = "Select Locations",
-      choices = file_data() %>% distinct(location_code),
-      selected = file_data()$location_code %>% unique(),
-      multiple = TRUE
-    )
-  })
-
   output$download_mk_excel <- downloadHandler(
     filename = function() {
       paste0("mk_trends_", Sys.Date(), ".xlsx")
@@ -1672,7 +1640,7 @@ server <- function(input, output) {
       )
 
       # One full style per trend (fill + matching border/font)
-      trend_styles <- lapply(mk_trend_colors, function(hex) {
+      trend_styles <- lapply(mk_trend_colors(), function(hex) {
         openxlsx::createStyle(
           fontName = "Arial",
           fontSize = 11,
@@ -1748,35 +1716,108 @@ server <- function(input, output) {
         openxlsx::writeData(wb, sheet = "Trend Summary", export_data)
         format_sheet(wb, "Trend Summary", export_data)
       } else {
+        lor_mult <- input$lor_multiplier
+        adj_conc <- function(d) {
+          ifelse(
+            !is.na(d$prefix) & d$prefix == "<",
+            d$concentration * lor_mult,
+            d$concentration
+          )
+        }
+
         export_data <- mk_results() %>%
+          mutate(
+            CF = (1 - p_value) * 100,
+            n_samples = purrr::map_int(data, nrow),
+            n_detects = purrr::map_int(
+              data,
+              ~ sum(is.na(.x$prefix) | .x$prefix != "<")
+            ),
+            n_nondetects = purrr::map_int(
+              data,
+              ~ sum(!is.na(.x$prefix) & .x$prefix == "<")
+            ),
+            percent_detect = purrr::map_dbl(
+              data,
+              ~ round(
+                sum(is.na(.x$prefix) | .x$prefix != "<") / nrow(.x) * 100,
+                1
+              )
+            ),
+            Minimum = purrr::map_dbl(data, ~ min(adj_conc(.x), na.rm = TRUE)),
+            Maximum = purrr::map_dbl(data, ~ max(adj_conc(.x), na.rm = TRUE)),
+            p10 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.10, na.rm = TRUE)
+            ),
+            p20 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.20, na.rm = TRUE)
+            ),
+            p25 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.25, na.rm = TRUE)
+            ),
+            p50 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.50, na.rm = TRUE)
+            ),
+            p75 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.75, na.rm = TRUE)
+            ),
+            p80 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.80, na.rm = TRUE)
+            ),
+            p90 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.90, na.rm = TRUE)
+            ),
+            p95 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.95, na.rm = TRUE)
+            ),
+            p99 = purrr::map_dbl(
+              data,
+              ~ quantile(adj_conc(.x), 0.99, na.rm = TRUE)
+            ),
+            output_unit = purrr::map_chr(data, ~ .x$output_unit[1])
+          ) %>%
           select(-data) %>%
+          mutate(across(
+            where(is.numeric),
+            ~ ifelse(is.nan(.x) | is.infinite(.x), NA_real_, .x)
+          )) %>%
+          select(
+            location_code,
+            chem_name,
+            p_value,
+            CF,
+            tau_statistic,
+            S_statistic,
+            sample_mean,
+            SD,
+            COV,
+            trend,
+            everything()
+          ) %>%
           arrange(location_code) %>%
           mutate_if(is.numeric, signif, 4)
 
         openxlsx::addWorksheet(wb, "Test Statistics")
-        openxlsx::writeData(wb, sheet = "Test Statistics", export_data)
+        openxlsx::writeData(
+          wb,
+          sheet = "Test Statistics",
+          export_data,
+          na.string = "NC"
+        )
         format_sheet(wb, "Test Statistics", export_data)
       }
 
       openxlsx::saveWorkbook(wb, file)
     }
   )
-
-  output$facet_plot <- renderPlotly({
-    req(facet_data())
-
-    facet_p <- facet_data() %>%
-      mutate(chem_name = glue('{chem_name} ({output_unit})')) %>%
-      timeseries_plot() +
-      facet_wrap(~chem_name, scales = "free_y") +
-      theme_light() +
-      theme(strip.background = element_rect(fill = NA, colour = "black")) +
-      theme(strip.text = element_text(colour = 'black')) +
-      labs(x = NULL, y = "Concentration", colour = "Location") +
-      scale_y_continuous(labels = scales::label_number())
-
-    plotly::ggplotly(facet_p, dynamicTicks = TRUE)
-  })
 }
 
 # Run the application
