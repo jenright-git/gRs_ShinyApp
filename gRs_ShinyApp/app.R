@@ -213,9 +213,7 @@ ui <- page_navbar(
           "Increasing Trends",
           card(layout_sidebar(
             sidebar = sidebar(
-              uiOutput(
-                outputId = "trend_select"
-              ),
+              uiOutput(outputId = "trend_select"),
               radioButtons(
                 inputId = "trend_method",
                 label = "Trend Method",
@@ -223,9 +221,65 @@ ui <- page_navbar(
                 selected = "loess",
                 choiceNames = c("Smoothed", "Linear")
               ),
+              numericInput(
+                inputId = "mk_trend_ncol",
+                label = "Columns",
+                value = NA,
+                min = 1,
+                step = 1
+              ),
+              selectInput(
+                inputId = "mk_trend_colour_theme",
+                label = "Colour Theme",
+                choices = list(
+                  "Custom" = c(
+                    "Default" = "aecom",
+                    "ggplot2 Default" = "ggplot2_default"
+                  ),
+                  "Viridis" = c(
+                    "Viridis" = "viridis",
+                    "Plasma" = "plasma",
+                    "Magma" = "magma",
+                    "Inferno" = "inferno",
+                    "Cividis" = "cividis",
+                    "Mako" = "mako",
+                    "Rocket" = "rocket",
+                    "Turbo" = "turbo"
+                  ),
+                  "Brewer — Qualitative" = c(
+                    "Set 1" = "Set1",
+                    "Set 2" = "Set2",
+                    "Dark 2" = "Dark2",
+                    "Paired" = "Paired",
+                    "Accent" = "Accent",
+                    "Pastel 1" = "Pastel1",
+                    "Pastel 2" = "Pastel2"
+                  ),
+                  "Brewer — Diverging" = c(
+                    "Spectral" = "Spectral",
+                    "RdYlBu" = "RdYlBu",
+                    "RdYlGn" = "RdYlGn",
+                    "BrBG" = "BrBG",
+                    "PiYG" = "PiYG",
+                    "PRGn" = "PRGn",
+                    "PuOr" = "PuOr"
+                  )
+                ),
+                selected = "aecom"
+              ),
+              tags$hr(style = "margin:8px 0;"),
+              tags$p("Download", style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"),
+              splitLayout(
+                cellWidths = c("50%", "50%"),
+                numericInput("mk_trend_width_cm",  "W (cm)", value = 30, min = 5, step = 0.5, width = "100%"),
+                numericInput("mk_trend_height_cm", "H (cm)", value = 20, min = 5, step = 0.5, width = "100%")
+              ),
+              numericInput("mk_trend_dpi", "DPI", value = 300, min = 72, max = 600, step = 50, width = "100%"),
+              downloadButton("download_mk_trends_png", "Download PNG",
+                             icon = shiny::icon("image"), class = "btn-sm w-100"),
               open = TRUE
             ),
-            plotlyOutput("mk_increasing"),
+            plotOutput("mk_increasing"),
             full_screen = TRUE
           ))
         ),
@@ -1032,26 +1086,97 @@ server <- function(input, output) {
     }
   })
 
-  output$mk_increasing <- renderPlotly({
-    req(mk_results())
+  increasing_plot_obj <- reactive({
+    req(mk_results(), input$trend_select)
 
-    increasing_p <- mk_results() %>%
+    establish_plotting_variables(data = file_data())
+
+    plot_data <- mk_results() %>%
       filter(trend == input$trend_select) %>%
-      unnest(data) %>%
-      mutate(chem_name = glue('{chem_name} ({output_unit})')) %>%
-      ggplot(aes(date, concentration, colour = location_code)) +
-      geom_point(alpha = 0.6, size = 1.2) +
-      facet_wrap(~chem_name, scales = "free_y") +
-      geom_smooth(se = F, method = input$trend_method) +
-      theme_light() +
-      labs(x = NULL, y = "Concentration", colour = NULL) +
-      theme(
-        strip.background = element_rect(fill = NA, colour = "black"),
-        strip.text = element_text(colour = "black")
+      unnest(data)
+
+    validate(need(
+      nrow(plot_data) > 0,
+      paste0("No analytes classified as '", input$trend_select, "'.\nSelect a different trend category.")
+    ))
+
+    plot_data <- plot_data %>%
+      mutate(
+        chem_name     = glue("{chem_name} ({output_unit})"),
+        location_code = factor(location_code, levels = names(location_colours))
       )
 
-    plotly::ggplotly(increasing_p, dynamicTicks = T)
+    n_analytes <- n_distinct(plot_data$chem_name)
+    ncol_wrap  <- if (!is.na(input$mk_trend_ncol) && input$mk_trend_ncol >= 1) {
+      as.integer(input$mk_trend_ncol)
+    } else {
+      if (n_analytes <= 2) n_analytes else ceiling(sqrt(n_analytes))
+    }
+
+    p <- ggplot(plot_data, aes(date, concentration, colour = location_code)) +
+      geom_point(alpha = 0.55, size = 1.8, shape = 16) +
+      geom_smooth(se = FALSE, method = input$trend_method, linewidth = 0.9) +
+      facet_wrap(~chem_name, scales = "free_y", ncol = ncol_wrap,
+                 labeller = label_wrap_gen(width = 30))
+
+    p <- p + switch(
+      input$mk_trend_colour_theme,
+      "aecom"          = scale_colour_manual(values = location_colours),
+      "ggplot2_default" = scale_colour_hue(),
+      "viridis"        = scale_colour_viridis_d(option = "viridis"),
+      "plasma"         = scale_colour_viridis_d(option = "plasma"),
+      "magma"          = scale_colour_viridis_d(option = "magma"),
+      "inferno"        = scale_colour_viridis_d(option = "inferno"),
+      "cividis"        = scale_colour_viridis_d(option = "cividis"),
+      "mako"           = scale_colour_viridis_d(option = "mako"),
+      "rocket"         = scale_colour_viridis_d(option = "rocket"),
+      "turbo"          = scale_colour_viridis_d(option = "turbo"),
+      scale_colour_brewer(palette = input$mk_trend_colour_theme)
+    )
+
+    p +
+      theme_light() +
+      labs(
+        x        = NULL,
+        y        = "Concentration",
+        colour   = NULL,
+        title    = paste0(input$trend_select, " Trends"),
+        subtitle = format(Sys.Date(), "%d %B %Y")
+      ) +
+      theme(
+        strip.background = element_rect(fill = "#f0faf6", colour = "#008768"),
+        strip.text       = element_text(colour = "#00353E", face = "bold", size = 9),
+        legend.position  = "bottom",
+        legend.text      = element_text(size = 9),
+        legend.title     = element_blank(),
+        axis.text.x      = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.y      = element_text(size = 8),
+        axis.title.y     = element_text(size = 10),
+        plot.title       = element_text(colour = "#00353E", face = "bold", size = 12),
+        plot.subtitle    = element_text(colour = "#666666", size = 9),
+        panel.border     = element_rect(colour = "grey70", fill = NA),
+        plot.margin      = margin(8, 12, 8, 8)
+      )
   })
+
+  output$mk_increasing <- renderPlot({
+    increasing_plot_obj()
+  })
+
+  output$download_mk_trends_png <- downloadHandler(
+    filename = function() paste0("mk_trends_", input$trend_select, "_", Sys.Date(), ".png"),
+    content  = function(file) {
+      ggsave(
+        filename = file,
+        plot     = increasing_plot_obj(),
+        width    = input$mk_trend_width_cm,
+        height   = input$mk_trend_height_cm,
+        units    = "cm",
+        dpi      = input$mk_trend_dpi,
+        device   = "png"
+      )
+    }
+  )
 
   output$analyte_selector <- renderUI({
     req(file_data())
@@ -1078,7 +1203,7 @@ server <- function(input, output) {
   })
 
   output$trend_select <- renderUI({
-    require(mk_results())
+    req(mk_results())
 
     radioButtons(
       inputId = "trend_select",
