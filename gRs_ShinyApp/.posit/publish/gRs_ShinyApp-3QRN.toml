@@ -10,7 +10,7 @@ files = [
     "/app.R",
     "/.posit/publish/gRs_ShinyApp-3QRN.toml",
     "/.posit/publish/deployments/deployment-1P6T.toml",
-    "/renv.lock",
+    "/manifest.json",
 ]
 title = "gRs_ShinyApp"
 
