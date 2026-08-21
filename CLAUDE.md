@@ -13,12 +13,7 @@ shiny::runApp("gRs_ShinyApp/app.R")
 
 ## Dependency Management
 
-This project uses `renv` (R 4.5.1) with a lockfile at `gRs_ShinyApp/renv.lock`. The `.Rprofile` at the repo root auto-activates renv on startup.
-
-```r
-renv::restore()       # restore packages from lockfile
-renv::snapshot()      # update lockfile after adding packages
-```
+This project does not use `renv` or any other project-local library. Packages resolve from the user's R library (R 4.5.x) and are installed with plain `install.packages()`.
 
 The `gRs` package is a private GitHub package — install via:
 ```r
