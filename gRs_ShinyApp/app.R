@@ -66,7 +66,20 @@ ui <- page_navbar(
             inputId = "file_input",
             label = "Upload Esdat File",
             accept = ".xlsx"
-          )
+          ),
+          checkboxInput(
+            inputId = "dedupe_check",
+            label = "Take Highest Dup Result",
+            value = FALSE
+          ),
+          tags$p(
+            paste(
+              "By default duplicate and triplicate samples are removed.
+              Check the box to use the highest value of a Normal, Dup and Trip comnbination"
+            ),
+            style = "font-size:11px; color:#666; margin:-6px 0 6px 0;"
+          ),
+          uiOutput("dedupe_note")
         ),
 
         accordion_panel(
@@ -268,15 +281,44 @@ ui <- page_navbar(
                 selected = "aecom"
               ),
               tags$hr(style = "margin:8px 0;"),
-              tags$p("Download", style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"),
+              tags$p(
+                "Download",
+                style = "font-weight:600; font-size:12px; margin:0 0 4px 0;"
+              ),
               splitLayout(
                 cellWidths = c("50%", "50%"),
-                numericInput("mk_trend_width_cm",  "W (cm)", value = 30, min = 5, step = 0.5, width = "100%"),
-                numericInput("mk_trend_height_cm", "H (cm)", value = 20, min = 5, step = 0.5, width = "100%")
+                numericInput(
+                  "mk_trend_width_cm",
+                  "W (cm)",
+                  value = 30,
+                  min = 5,
+                  step = 0.5,
+                  width = "100%"
+                ),
+                numericInput(
+                  "mk_trend_height_cm",
+                  "H (cm)",
+                  value = 20,
+                  min = 5,
+                  step = 0.5,
+                  width = "100%"
+                )
               ),
-              numericInput("mk_trend_dpi", "DPI", value = 300, min = 72, max = 600, step = 50, width = "100%"),
-              downloadButton("download_mk_trends_png", "Download PNG",
-                             icon = shiny::icon("image"), class = "btn-sm w-100"),
+              numericInput(
+                "mk_trend_dpi",
+                "DPI",
+                value = 300,
+                min = 72,
+                max = 600,
+                step = 50,
+                width = "100%"
+              ),
+              downloadButton(
+                "download_mk_trends_png",
+                "Download PNG",
+                icon = shiny::icon("image"),
+                class = "btn-sm w-100"
+              ),
               open = TRUE
             ),
             plotOutput("mk_increasing"),
@@ -742,9 +784,128 @@ server <- function(input, output) {
   # Shared header / border colour for DT and Excel export
   mk_header_col <- "#008768"
 
-  file_data <- reactive({
+  # Reads the upload once, normalises the export and applies the sample-type
+  # filter, so file_data() and the sidebar note share a single pass over the
+  # file. Returns the mode that ran so the note can describe it.
+  processed_file <- reactive({
     file <- input$file_input
-    if (!is.null(file)) data_processor(file$datapath)
+    req(file)
+
+    raw <- data_processor(file$datapath)
+
+    # data_processor() auto-detects the report family, so a gauging report or
+    # an action level export reads without error but carries no chemistry.
+    # Say so rather than letting every downstream reactive fail on a missing
+    # chem_name column.
+    validate(need(
+      !is.null(raw) && all(c("chem_name", "concentration") %in% names(raw)),
+      paste0(
+        "'",
+        file$name,
+        "' could not be read as a chemistry export.\n",
+        "Upload an ESDAT Chemistry List / Chemistry export, or an EQuIS ",
+        "Analytical Results II export."
+      )
+    ))
+
+    # ESDAT Chemistry List exports carry no chemical group column.
+    # establish_plotting_variables() reads chem_group unconditionally, so
+    # supply it as NA rather than letting the lookup error.
+    if (!"chem_group" %in% names(raw)) {
+      raw$chem_group <- NA_character_
+    }
+
+    has_type <- "sample_type" %in% names(raw)
+
+    # "Normal" is the ESDAT label for a primary sample. An export that uses a
+    # different vocabulary is left unfiltered rather than emptied.
+    can_filter <- has_type && any(raw$sample_type == "Normal", na.rm = TRUE)
+
+    if (isTRUE(input$dedupe_check) && has_type) {
+      # select_max_concentration() does not guarantee row order; the
+      # timeseries geom_path() joins points in data order, so restore the
+      # date ordering data_processor() returns.
+      out <- select_max_concentration(raw) %>% arrange(date)
+      mode <- "max"
+    } else {
+      out <- raw
+
+      if (can_filter) {
+        out <- out %>% filter(sample_type == "Normal")
+      }
+
+      # An ESDAT migration row and its re-reported twin differ in
+      # method_name, lab report number and so on, so distinct() over the
+      # whole row removes nothing. Key on the reported result instead.
+      # field_id keeps two genuinely separate samples apart when they happen
+      # to return the same value - common for non-detects at a shared LOR -
+      # and is dropped from the key for exports that do not carry it.
+      dup_key <- intersect(
+        c(
+          "location_code",
+          "field_id",
+          "date",
+          "chem_name",
+          "concentration",
+          "prefix",
+          "output_unit"
+        ),
+        names(out)
+      )
+
+      out <- out %>%
+        distinct(across(all_of(dup_key)), .keep_all = TRUE)
+
+      mode <- if (can_filter) "normal" else "unfiltered"
+    }
+
+    list(data = out, n_raw = nrow(raw), n_kept = nrow(out), mode = mode)
+  })
+
+  file_data <- reactive({
+    processed_file()$data
+  })
+
+  output$dedupe_note <- renderUI({
+    req(processed_file())
+    removed <- processed_file()$n_raw - processed_file()$n_kept
+
+    kept <- format(processed_file()$n_kept, big.mark = ",")
+    dropped <- format(removed, big.mark = ",")
+    col <- "#008745"
+
+    msg <- switch(
+      processed_file()$mode,
+      "max" = sprintf(
+        "%s results loaded; primary and duplicate samples collapsed to the highest result.",
+        kept
+      ),
+      "normal" = if (removed == 0) {
+        sprintf("%s Normal results loaded; no duplicates found.", kept)
+      } else {
+        sprintf(
+          "%s Normal results loaded; %s duplicate or repeated result(s) removed.",
+          kept,
+          dropped
+        )
+      },
+      "unfiltered" = {
+        col <- "#666"
+        sprintf(
+          "%s results loaded; no Normal sample type recorded, so duplicates were not filtered.",
+          kept
+        )
+      }
+    )
+
+    tags$p(
+      msg,
+      style = paste0(
+        "font-size:11px; font-weight:600; color:",
+        col,
+        "; margin:0;"
+      )
+    )
   })
 
   mk_results <- eventReactive(input$mk_button, {
@@ -1097,17 +1258,21 @@ server <- function(input, output) {
 
     validate(need(
       nrow(plot_data) > 0,
-      paste0("No analytes classified as '", input$trend_select, "'.\nSelect a different trend category.")
+      paste0(
+        "No analytes classified as '",
+        input$trend_select,
+        "'.\nSelect a different trend category."
+      )
     ))
 
     plot_data <- plot_data %>%
       mutate(
-        chem_name     = glue("{chem_name} ({output_unit})"),
+        chem_name = glue("{chem_name} ({output_unit})"),
         location_code = factor(location_code, levels = names(location_colours))
       )
 
     n_analytes <- n_distinct(plot_data$chem_name)
-    ncol_wrap  <- if (!is.na(input$mk_trend_ncol) && input$mk_trend_ncol >= 1) {
+    ncol_wrap <- if (!is.na(input$mk_trend_ncol) && input$mk_trend_ncol >= 1) {
       as.integer(input$mk_trend_ncol)
     } else {
       if (n_analytes <= 2) n_analytes else ceiling(sqrt(n_analytes))
@@ -1116,46 +1281,51 @@ server <- function(input, output) {
     p <- ggplot(plot_data, aes(date, concentration, colour = location_code)) +
       geom_point(alpha = 0.55, size = 1.8, shape = 16) +
       geom_smooth(se = FALSE, method = input$trend_method, linewidth = 0.9) +
-      facet_wrap(~chem_name, scales = "free_y", ncol = ncol_wrap,
-                 labeller = label_wrap_gen(width = 30))
+      facet_wrap(
+        ~chem_name,
+        scales = "free_y",
+        ncol = ncol_wrap,
+        labeller = label_wrap_gen(width = 30)
+      )
 
-    p <- p + switch(
-      input$mk_trend_colour_theme,
-      "aecom"          = scale_colour_manual(values = location_colours),
-      "ggplot2_default" = scale_colour_hue(),
-      "viridis"        = scale_colour_viridis_d(option = "viridis"),
-      "plasma"         = scale_colour_viridis_d(option = "plasma"),
-      "magma"          = scale_colour_viridis_d(option = "magma"),
-      "inferno"        = scale_colour_viridis_d(option = "inferno"),
-      "cividis"        = scale_colour_viridis_d(option = "cividis"),
-      "mako"           = scale_colour_viridis_d(option = "mako"),
-      "rocket"         = scale_colour_viridis_d(option = "rocket"),
-      "turbo"          = scale_colour_viridis_d(option = "turbo"),
-      scale_colour_brewer(palette = input$mk_trend_colour_theme)
-    )
+    p <- p +
+      switch(
+        input$mk_trend_colour_theme,
+        "aecom" = scale_colour_manual(values = location_colours),
+        "ggplot2_default" = scale_colour_hue(),
+        "viridis" = scale_colour_viridis_d(option = "viridis"),
+        "plasma" = scale_colour_viridis_d(option = "plasma"),
+        "magma" = scale_colour_viridis_d(option = "magma"),
+        "inferno" = scale_colour_viridis_d(option = "inferno"),
+        "cividis" = scale_colour_viridis_d(option = "cividis"),
+        "mako" = scale_colour_viridis_d(option = "mako"),
+        "rocket" = scale_colour_viridis_d(option = "rocket"),
+        "turbo" = scale_colour_viridis_d(option = "turbo"),
+        scale_colour_brewer(palette = input$mk_trend_colour_theme)
+      )
 
     p +
       theme_light() +
       labs(
-        x        = NULL,
-        y        = "Concentration",
-        colour   = NULL,
-        title    = paste0(input$trend_select, " Trends"),
+        x = NULL,
+        y = "Concentration",
+        colour = NULL,
+        title = paste0(input$trend_select, " Trends"),
         subtitle = format(Sys.Date(), "%d %B %Y")
       ) +
       theme(
         strip.background = element_rect(fill = "#f0faf6", colour = "#008768"),
-        strip.text       = element_text(colour = "#00353E", face = "bold", size = 9),
-        legend.position  = "bottom",
-        legend.text      = element_text(size = 9),
-        legend.title     = element_blank(),
-        axis.text.x      = element_text(angle = 45, hjust = 1, size = 8),
-        axis.text.y      = element_text(size = 8),
-        axis.title.y     = element_text(size = 10),
-        plot.title       = element_text(colour = "#00353E", face = "bold", size = 12),
-        plot.subtitle    = element_text(colour = "#666666", size = 9),
-        panel.border     = element_rect(colour = "grey70", fill = NA),
-        plot.margin      = margin(8, 12, 8, 8)
+        strip.text = element_text(colour = "#00353E", face = "bold", size = 9),
+        legend.position = "bottom",
+        legend.text = element_text(size = 9),
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.y = element_text(size = 8),
+        axis.title.y = element_text(size = 10),
+        plot.title = element_text(colour = "#00353E", face = "bold", size = 12),
+        plot.subtitle = element_text(colour = "#666666", size = 9),
+        panel.border = element_rect(colour = "grey70", fill = NA),
+        plot.margin = margin(8, 12, 8, 8)
       )
   })
 
@@ -1164,16 +1334,18 @@ server <- function(input, output) {
   })
 
   output$download_mk_trends_png <- downloadHandler(
-    filename = function() paste0("mk_trends_", input$trend_select, "_", Sys.Date(), ".png"),
-    content  = function(file) {
+    filename = function() {
+      paste0("mk_trends_", input$trend_select, "_", Sys.Date(), ".png")
+    },
+    content = function(file) {
       ggsave(
         filename = file,
-        plot     = increasing_plot_obj(),
-        width    = input$mk_trend_width_cm,
-        height   = input$mk_trend_height_cm,
-        units    = "cm",
-        dpi      = input$mk_trend_dpi,
-        device   = "png"
+        plot = increasing_plot_obj(),
+        width = input$mk_trend_width_cm,
+        height = input$mk_trend_height_cm,
+        units = "cm",
+        dpi = input$mk_trend_dpi,
+        device = "png"
       )
     }
   )
@@ -1195,8 +1367,8 @@ server <- function(input, output) {
       "location_input",
       label = "Select and Order Locations",
       choices = file_data() %>%
-        arrange(chem_group) %>%
-        distinct(location_code),
+        distinct(location_code) %>%
+        arrange(location_code),
       selected = file_data()$location_code %>% unique(),
       multiple = TRUE
     )
